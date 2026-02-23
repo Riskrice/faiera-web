@@ -1,0 +1,52 @@
+'use client';
+
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+
+interface ChartDataPoint {
+    name: string
+    total: number
+}
+
+interface OverviewChartProps {
+    data?: ChartDataPoint[]
+}
+
+export function OverviewChart({ data = [] }: OverviewChartProps) {
+    if (data.length === 0) {
+        return (
+            <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                لا توجد بيانات متاحة
+            </div>
+        )
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={data}>
+                <XAxis
+                    dataKey="name"
+                    stroke="#888888"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                />
+                <YAxis
+                    stroke="#888888"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `$${value}`}
+                />
+                <Tooltip
+                    cursor={{ fill: 'transparent' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+                <Bar
+                    dataKey="total"
+                    fill="#10B981" // Primary color (Emerald)
+                    radius={[4, 4, 0, 0]}
+                />
+            </BarChart>
+        </ResponsiveContainer>
+    );
+}
