@@ -13,7 +13,7 @@ export default function LoginPage() {
             <div className="flex flex-col space-y-2 text-center">
                 <h1 className="text-2xl font-bold tracking-tight font-cairo">مرحباً بعودتك 👋</h1>
                 <p className="text-sm text-muted-foreground">
-                    أدخل بريدك الإلكتروني للدخول إلى حسابك
+                    أدخل بريدك الإلكتروني وكلمة المرور للدخول إلى حسابك
                 </p>
             </div>
             <LoginForm />

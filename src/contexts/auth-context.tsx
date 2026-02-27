@@ -10,6 +10,8 @@ interface AuthContextType {
     accessToken: string | null;
     loading: boolean;
     signIn: (email: string, password: string, remember?: boolean) => Promise<{ error: Error | null }>;
+    requestOtp: (email: string) => Promise<{ error: Error | null }>;
+    verifyOtp: (email: string, otpCode: string, remember?: boolean) => Promise<{ error: Error | null }>;
     signUp: (email: string, password: string, metadata?: { name?: string }) => Promise<{ error: Error | null }>;
     signOut: () => Promise<void>;
     updateUser: (user: User) => void;
@@ -167,22 +169,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const requestOtp = async (email: string) => {
+        try {
+            await api.post('/auth/request-otp', { email });
+            return { error: null };
+        } catch (err: any) {
+            return { error: new Error(err.message || 'Failed to request OTP') };
+        }
+    };
+
+    const verifyOtp = async (email: string, otpCode: string, remember: boolean = false) => {
+        try {
+            const response = await api.post<{ data: LoginResponse }>('/auth/verify-otp', { email, otpCode });
+            const { user, tokens } = response.data;
+
+            handleLoginSuccess(user, tokens, remember);
+
+            // Redirect based on role
+            switch (user.role) {
+                case 'admin':
+                case 'super_admin':
+                    router.push('/dashboard');
+                    break;
+                case 'teacher':
+                    router.push('/teacher');
+                    break;
+                case 'student':
+                default:
+                    router.push('/student');
+            }
+
+            return { error: null };
+        } catch (err: any) {
+            return { error: new Error(err.message || 'Invalid OTP') };
+        }
+    };
+
     const signUp = async (email: string, password: string, metadata?: { name?: string }) => {
         try {
             // Split name if provided
             const [firstName, ...lastNameParts] = (metadata?.name || '').split(' ');
             const lastName = lastNameParts.join(' ') || 'User';
 
-            await api.post<{ data: RegisterResponse }>('/auth/register', {
+            const response = await api.post<{ data: RegisterResponse }>('/auth/register', {
                 email,
                 password,
                 firstName: firstName || 'New',
                 lastName: lastName,
-                // Default role is student, handled by backend or can be passed
             });
 
-            // Auto login or redirect to login
-            router.push('/login?registered=true');
+            const { user, tokens } = response.data;
+
+            // Auto-login after registration
+            handleLoginSuccess(user, tokens, false);
+
+            // Redirect to student dashboard (new users are always students)
+            router.push('/student');
             return { error: null };
         } catch (err: any) {
             return { error: new Error(err.message || 'Registration failed') };
@@ -247,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, accessToken, loading, signIn, signUp, signOut, updateUser }}>
+        <AuthContext.Provider value={{ user, accessToken, loading, signIn, requestOtp, verifyOtp, signUp, signOut, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

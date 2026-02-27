@@ -85,8 +85,8 @@ export function Navbar() {
                 </div>
 
                 {/* Mobile Toggle */}
-                <button className="md:hidden text-white" onClick={() => setIsOpen(!isOpen)}>
-                    {isOpen ? <X /> : <Menu />}
+                <button className="md:hidden text-foreground p-2 -mr-2" onClick={() => setIsOpen(!isOpen)}>
+                    {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                 </button>
             </div>
 
@@ -95,21 +95,21 @@ export function Navbar() {
                 <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
-                    className="md:hidden bg-background border-t border-white/10 mt-4"
+                    className="md:hidden bg-background border-t border-border mt-4"
                 >
                     <div className="flex flex-col p-6 space-y-4">
                         {navLinks.map((link) => (
                             <Link
                                 key={link.name}
                                 href={link.href}
-                                className="text-gray-300 hover:text-primary text-lg font-cairo"
+                                className="text-muted-foreground hover:text-primary text-lg font-cairo"
                             >
                                 {link.name}
                             </Link>
                         ))}
-                        <hr className="border-white/10" />
-                        <Link href="/login" className="text-foreground">تسجيل الدخول</Link>
-                        <Button className="w-full">اشترك مجاناً</Button>
+                        <hr className="border-border" />
+                        <Link href="/login" className="text-foreground font-cairo font-bold">تسجيل الدخول</Link>
+                        <Button className="w-full font-cairo">اشترك مجاناً</Button>
                     </div>
                 </motion.div>
             )}
