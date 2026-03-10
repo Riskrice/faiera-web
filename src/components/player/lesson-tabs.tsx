@@ -15,32 +15,32 @@ interface LessonTabsProps {
 export function LessonTabs({ lesson, course }: LessonTabsProps) {
     return (
         <Tabs defaultValue="overview" className="w-full">
-            <div className="border-b border-white/5">
-                <TabsList className="bg-transparent p-0 gap-6">
-                    <TabsTrigger value="overview" className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-0 py-3 text-gray-400 data-[state=active]:text-primary text-base transition-all data-[state=active]:text-shadow-glow">
+            <div className="border-b border-white/5 overflow-x-auto hide-scrollbar">
+                <TabsList className="bg-transparent p-0 gap-5 md:gap-6 min-w-max">
+                    <TabsTrigger value="overview" className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-0 py-3 text-gray-400 data-[state=active]:text-primary text-sm md:text-base transition-all data-[state=active]:text-shadow-glow">
                         <Info className="w-4 h-4 ml-2" />
                         نظرة عامة
                     </TabsTrigger>
-                    <TabsTrigger value="qa" className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-0 py-3 text-gray-400 data-[state=active]:text-primary text-base">
+                    <TabsTrigger value="qa" className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-0 py-3 text-gray-400 data-[state=active]:text-primary text-sm md:text-base">
                         <MessageSquare className="w-4 h-4 ml-2" />
                         سؤال وجواب (Q&A)
                     </TabsTrigger>
-                    <TabsTrigger value="notes" className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-0 py-3 text-gray-400 data-[state=active]:text-primary text-base">
+                    <TabsTrigger value="notes" className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-0 py-3 text-gray-400 data-[state=active]:text-primary text-sm md:text-base">
                         <StickyNote className="w-4 h-4 ml-2" />
                         ملاحظاتي
                     </TabsTrigger>
                 </TabsList>
             </div>
 
-            <TabsContent value="overview" className="py-6 space-y-6 animate-in fade-in-50 slide-in-from-bottom-2">
+            <TabsContent value="overview" className="py-5 md:py-6 space-y-5 md:space-y-6 animate-in fade-in-50 slide-in-from-bottom-2">
                 <div className="space-y-4">
-                    <h2 className="text-2xl font-bold font-cairo text-foreground">{lesson.title}</h2>
+                    <h2 className="text-xl md:text-2xl font-bold font-cairo text-foreground leading-8">{lesson.title}</h2>
                     <p className="text-muted-foreground leading-relaxed">
                         في هذا الدرس سوف نتعلم الأساسيات الخاصة بهذا الموضوع، مع التركيز على النقاط الهامة التي تأتي دائماً في الامتحانات. تأكد من متابعة الشرح للنهاية وحل التدريبات المرفقة.
                     </p>
                 </div>
 
-                <div className="flex items-center gap-4 bg-card p-4 rounded-xl border border-border">
+                <div className="flex items-center gap-3 md:gap-4 bg-card p-4 rounded-xl border border-border">
                     <Avatar className="w-12 h-12 border-2 border-border">
                         <AvatarImage src={course.author.avatar} />
                         <AvatarFallback>MR</AvatarFallback>
@@ -54,7 +54,7 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
                 <div className="space-y-3">
                     <h3 className="font-bold text-foreground text-lg font-cairo">ملفات ومرفقات</h3>
                     <div className="grid sm:grid-cols-2 gap-3">
-                        <Button variant="outline" className="justify-start border-border hover:bg-muted h-auto py-3 text-right">
+                        <Button variant="outline" className="justify-start border-border hover:bg-muted h-auto py-3 text-right min-h-[76px]">
                             <FileText className="w-5 h-5 ml-3 text-blue-500" />
                             <div className="flex flex-col items-start text-foreground">
                                 <span className="font-bold">ملخص الدرس PDF</span>
@@ -62,7 +62,7 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
                             </div>
                             <Download className="w-4 h-4 mr-auto text-muted-foreground" />
                         </Button>
-                        <Button variant="outline" className="justify-start border-border hover:bg-muted h-auto py-3 text-right">
+                        <Button variant="outline" className="justify-start border-border hover:bg-muted h-auto py-3 text-right min-h-[76px]">
                             <FileText className="w-5 h-5 ml-3 text-emerald-500" />
                             <div className="flex flex-col items-start text-foreground">
                                 <span className="font-bold">ورقة التدريبات (Workshop)</span>
@@ -74,8 +74,8 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
                 </div>
             </TabsContent>
 
-            <TabsContent value="qa" className="py-6">
-                <div className="text-center py-16 bg-card rounded-xl border border-border dashed">
+            <TabsContent value="qa" className="py-5 md:py-6">
+                <div className="text-center py-10 md:py-16 bg-card rounded-xl border border-border dashed px-4 md:px-6">
                     <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
                         <MessageSquare className="w-8 h-8 text-primary/80" />
                     </div>
@@ -83,17 +83,17 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
                     <p className="text-muted-foreground max-w-sm mx-auto mb-8 leading-relaxed">
                         اسأل المعلم أو زمايلك في الكورس وهيتم الرد عليك في أسرع وقت.
                     </p>
-                    <div className="max-w-xl mx-auto flex gap-3 px-6">
+                    <div className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3 px-0 sm:px-6">
                         <Input
                             placeholder="اكتب سؤالك هنا..."
                             className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary h-12"
                         />
-                        <Button className="h-12 px-8 font-bold">إرسال</Button>
+                        <Button className="h-12 px-8 font-bold sm:w-auto w-full">إرسال</Button>
                     </div>
                 </div>
             </TabsContent>
 
-            <TabsContent value="notes" className="py-6">
+            <TabsContent value="notes" className="py-5 md:py-6">
                 <textarea
                     className="w-full h-64 bg-card border border-border rounded-xl p-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none font-cairo leading-relaxed"
                     placeholder="اكتب ملاحظاتك هنا أثناء المشاهدة... (سيتم حفظها تلقائياً)"

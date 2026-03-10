@@ -42,8 +42,8 @@ export function ActiveFilters() {
     if (!hasFilters) return null;
 
     return (
-        <div className="flex items-center gap-2 mb-6 flex-wrap">
-            <span className="text-sm font-medium text-muted-foreground ml-2">الفلاتر النشطة:</span>
+        <div className="mb-4 flex flex-wrap items-center gap-1.5 md:mb-5 md:gap-2 rounded-2xl md:border md:border-border/60 md:bg-card/50 md:px-4 md:py-3">
+            <span className="w-full text-xs sm:text-sm font-medium text-muted-foreground md:w-auto md:ml-2">الفلاتر النشطة:</span>
 
             <AnimatePresence>
                 {searchQuery && (
@@ -51,7 +51,7 @@ export function ActiveFilters() {
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
-                        className="flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 text-sm font-medium"
+                        className="flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs sm:text-sm font-medium"
                     >
                         <span>بحث: {searchQuery}</span>
                         <button onClick={() => removeFilter('q')} className="hover:text-red-500">
@@ -68,7 +68,7 @@ export function ActiveFilters() {
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.8 }}
-                            className="flex items-center gap-1 px-3 py-1 rounded-full bg-secondary/10 text-secondary-foreground border border-secondary/20 text-sm font-medium"
+                            className="flex items-center gap-1 px-3 py-1 rounded-full bg-secondary/10 text-secondary-foreground border border-secondary/20 text-xs sm:text-sm font-medium"
                         >
                             <span>{label}</span>
                             <button onClick={() => removeFilter('category', catId)} className="hover:text-red-500">
@@ -88,7 +88,7 @@ export function ActiveFilters() {
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.8 }}
-                            className="flex items-center gap-1 px-3 py-1 rounded-full bg-accent text-accent-foreground border border-border text-sm font-medium"
+                            className="flex items-center gap-1 px-3 py-1 rounded-full bg-accent text-accent-foreground border border-border text-xs sm:text-sm font-medium"
                         >
                             <span>{label}</span>
                             <button onClick={() => removeFilter('level', level)} className="hover:text-red-500">
@@ -99,7 +99,7 @@ export function ActiveFilters() {
                 })}
             </AnimatePresence>
 
-            <Button variant="link" onClick={clearAll} className="text-muted-foreground hover:text-destructive text-sm h-auto p-0 mr-auto">
+            <Button variant="link" onClick={clearAll} className="w-full justify-start text-muted-foreground hover:text-destructive text-sm h-auto p-0 pt-1 md:w-auto md:mr-auto md:pt-0 md:pr-0">
                 مسح الكل
             </Button>
         </div>

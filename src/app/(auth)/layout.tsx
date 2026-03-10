@@ -24,7 +24,7 @@ export default function AuthLayout({
                             <img
                                 src="/logo.png"
                                 alt="Faiera Logo"
-                                className="h-10 w-auto object-contain drop-shadow-sm"
+                                className="h-14 w-auto object-contain drop-shadow-sm"
                                 style={{ imageRendering: 'crisp-edges', WebkitFontSmoothing: 'antialiased' }}
                             />
                         </Link>
@@ -69,7 +69,7 @@ export default function AuthLayout({
                             <img
                                 src="/logo.png"
                                 alt="Faiera Logo"
-                                className="h-10 w-auto object-contain drop-shadow-sm"
+                                className="h-16 w-auto object-contain drop-shadow-sm"
                                 style={{ imageRendering: 'crisp-edges', WebkitFontSmoothing: 'antialiased' }}
                             />
                         </Link>

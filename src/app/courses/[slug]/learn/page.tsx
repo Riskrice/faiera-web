@@ -3,9 +3,9 @@ import { VideoPlayer } from '@/components/player/video-player';
 import { QuizPlayer } from '@/components/player/quiz-player';
 import { PlaylistSidebar } from '@/components/player/playlist-sidebar';
 import { LessonTabs } from '@/components/player/lesson-tabs';
-import { Navbar } from '@/components/layout';
+import { MobilePlaylistDrawer } from '@/components/player/mobile-playlist-drawer';
 import { notFound } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Flag } from 'lucide-react';
 import Link from 'next/link';
 
 interface PageProps {
@@ -71,20 +71,21 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
     return (
         <main className="min-h-screen bg-background text-foreground flex flex-col">
             {/* Slim Header for Learn Mode */}
-            <header className="h-16 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 flex items-center px-6 sticky top-0 z-50">
-                <Link href={`/courses/${slug}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <header className="h-16 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 flex items-center px-4 md:px-6 sticky top-0 z-50">
+                <Link href={`/courses/${slug}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors shrink-0">
                     <ChevronRight className="w-5 h-5 rtl:rotate-180" />
-                    <span>عودة للرئيسية</span>
+                    <span className="hidden sm:inline">عودة للرئيسية</span>
                 </Link>
-                <div className="mr-6 border-r border-border pr-6 h-8 flex items-center">
-                    <h1 className="font-bold text-foreground text-sm md:text-base truncate max-w-md">{courseTitle}</h1>
+                <div className="mr-3 md:mr-6 border-r border-border pr-3 md:pr-6 h-8 flex items-center min-w-0 flex-1">
+                    <h1 className="font-bold text-foreground text-sm md:text-base truncate max-w-full md:max-w-md">{courseTitle}</h1>
                 </div>
+                <MobilePlaylistDrawer course={course} currentLessonId={activeLesson.id} />
             </header>
 
             <div className="flex-1 flex overflow-hidden h-[calc(100vh-64px)]">
                 {/* Main Content (Video + Tabs OR Quiz) */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar bg-background">
-                    <div className="max-w-5xl mx-auto p-6 space-y-8 h-full">
+                    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 md:space-y-8 h-full">
                         {isQuiz ? (
                             <QuizPlayer
                                 assessmentId={activeLesson.id}
@@ -96,9 +97,12 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
                                 <div className="space-y-4">
                                     <VideoPlayer title={activeLesson.title} lessonId={activeLesson.id} />
 
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-xl md:text-2xl font-bold text-foreground font-cairo">{activeLesson.title}</h2>
-                                        <button className="text-sm text-primary hover:underline">الإبلاغ عن مشكلة</button>
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <h2 className="text-lg md:text-2xl font-bold text-foreground font-cairo leading-8">{activeLesson.title}</h2>
+                                        <button className="inline-flex items-center gap-2 text-sm text-primary hover:underline self-start sm:self-auto">
+                                            <Flag className="w-4 h-4" />
+                                            الإبلاغ عن مشكلة
+                                        </button>
                                     </div>
                                 </div>
 

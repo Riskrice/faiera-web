@@ -10,6 +10,16 @@ interface SecurePlayerProps {
     autoPlay?: boolean;
 }
 
+const MISSING_VIDEO_MESSAGE = "لا يوجد فيديو متاح لهذا الدرس حالياً.";
+
+function isMissingVideoError(status?: number, message?: string) {
+    if (status === 404) {
+        return true;
+    }
+
+    return /video resource not found|not found for this lesson/i.test(message || "");
+}
+
 export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) {
     const [embedUrl, setEmbedUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -20,7 +30,6 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
         let mounted = true;
 
         const fetchStreamUrl = async () => {
-            console.log('SecurePlayer fetchStreamUrl called. Token:', accessToken ? 'PRESENT' : 'MISSING', 'authLoading:', authLoading);
             if (authLoading) return; // Wait for auth to finish initializing
 
             try {
@@ -40,13 +49,27 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-                    throw new Error(errorData.message || errorData.error?.message || `HTTP ${response.status}`);
+                    const message = errorData.message || errorData.error?.message || `HTTP ${response.status}`;
+
+                    if (mounted && isMissingVideoError(response.status, message)) {
+                        setError(MISSING_VIDEO_MESSAGE);
+                        return;
+                    }
+
+                    throw new Error(message);
                 }
 
                 const responseBody = await response.json();
                 const videoUrl = responseBody.data?.url || responseBody.url; // Support both wrapped and direct formats
 
-                if (mounted && videoUrl) {
+                if (!videoUrl) {
+                    if (mounted) {
+                        setError(MISSING_VIDEO_MESSAGE);
+                    }
+                    return;
+                }
+
+                if (mounted) {
                     // Append autoplay param if requested
                     const url = new URL(videoUrl);
                     if (autoPlay) {
@@ -59,6 +82,13 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
                 }
             } catch (err) {
                 if (mounted) {
+                    const message = err instanceof Error ? err.message : "";
+
+                    if (isMissingVideoError(undefined, message)) {
+                        setError(MISSING_VIDEO_MESSAGE);
+                        return;
+                    }
+
                     console.error("Failed to load video stream", err);
                     setError("فشل تحميل الفيديو. قد لا تكون لديك صلاحية مشاهدة هذا الدرس.");
                 }

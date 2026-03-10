@@ -9,10 +9,8 @@ import {
     Clock,
     Video,
     Search,
-    Filter,
     ArrowRight,
     Sparkles,
-    Shield
 } from "lucide-react"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
@@ -117,29 +115,29 @@ export default function PublicSessionsPage() {
             <Navbar />
 
             {/* Hero Section */}
-            <div className="bg-primary/5 py-16 px-4 pt-32">
+            <div className="bg-primary/5 py-12 md:py-16 px-4 pt-28 md:pt-32">
                 <div className="max-w-4xl mx-auto text-center space-y-4">
                     <Badge variant="secondary" className="px-4 py-1.5 text-sm font-normal bg-white shadow-sm">
                         <Video className="w-4 h-4 mr-2 text-red-500" />
                         حصص مباشرة وتفاعلية
                     </Badge>
-                    <h1 className="text-4xl md:text-5xl font-extrabold font-cairo tracking-tight text-primary">
+                    <h1 className="text-[2rem] md:text-5xl font-extrabold font-cairo tracking-tight text-primary leading-[1.35] md:leading-tight">
                         تعلم مباشرة مع نخبة المعلمين
                     </h1>
-                    <p className="text-xl text-muted-foreground font-light max-w-2xl mx-auto">
+                    <p className="text-[15px] md:text-xl text-muted-foreground font-light leading-7 max-w-2xl mx-auto">
                         احجز مقعدك الآن في أقوى الحصص المباشرة، وتفاعل مع معلمك وكأنك في الفصل الدراسي.
                     </p>
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-4 py-12">
+            <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
                 {/* Search Bar */}
-                <div className="flex flex-col md:flex-row gap-4 mb-10 max-w-3xl mx-auto">
+                <div className="flex flex-col md:flex-row gap-4 mb-8 md:mb-10 max-w-3xl mx-auto">
                     <div className="relative flex-1">
-                        <Search className="absolute right-4 top-3.5 h-5 w-5 text-muted-foreground" />
+                        <Search className="absolute right-4 top-3 h-5 w-5 text-muted-foreground" />
                         <Input
                             placeholder="ابحث عن مادة، معلم، أو عنوان درس..."
-                            className="pr-12 h-12 text-lg font-cairo shadow-sm"
+                            className="pr-12 h-11 md:h-12 text-sm md:text-lg font-cairo shadow-sm"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -147,7 +145,7 @@ export default function PublicSessionsPage() {
                 </div>
 
                 {/* Sessions Grid */}
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {filteredSessions.map((session) => (
                         <PublicSessionCard key={session.id} session={session} />
                     ))}
@@ -161,9 +159,9 @@ export default function PublicSessionsPage() {
             </div>
 
             {/* CTA Section */}
-            <div className="border-t bg-muted/30 py-16 px-4 text-center">
-                <h2 className="text-2xl font-bold mb-4 font-cairo">لا تفوت أي حصة!</h2>
-                <p className="text-muted-foreground mb-6">سجل دخولك الآن لتتمكن من حجز الحصص وتلقي التنبيهات.</p>
+            <div className="border-t bg-muted/30 py-12 md:py-16 px-4 text-center">
+                <h2 className="text-xl md:text-2xl font-bold mb-4 font-cairo">لا تفوت أي حصة!</h2>
+                <p className="text-sm md:text-base text-muted-foreground mb-6">سجل دخولك الآن لتتمكن من حجز الحصص وتلقي التنبيهات.</p>
                 <Link href="/login">
                     <Button size="lg" className="gap-2">
                         تسجيل الدخول
@@ -182,10 +180,10 @@ function PublicSessionCard({ session }: { session: Session }) {
 
     return (
         <Card className={cn(
-            "flex flex-col overflow-hidden transition-all hover:shadow-lg border-t-4 group",
+            "flex flex-col overflow-hidden transition-all hover:shadow-lg border-t-4 group rounded-[20px]",
             isLive ? "border-t-red-500 shadow-red-100/50" : "border-t-primary/20"
         )}>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 p-4 md:p-6">
                 <div className="flex justify-between items-start mb-2">
                     <Badge variant={isLive ? "destructive" : "secondary"} className={cn(isLive && "animate-pulse")}>
                         {isLive ? "مباشر الآن 🔴" : "مجدولة"}
@@ -201,7 +199,7 @@ function PublicSessionCard({ session }: { session: Session }) {
                         )}
                     </div>
                 </div>
-                <CardTitle className="font-cairo text-lg leading-snug min-h-[3.5rem] line-clamp-2 group-hover:text-primary transition-colors">
+                <CardTitle className="font-cairo text-base md:text-lg leading-7 md:leading-snug min-h-[3.5rem] line-clamp-2 group-hover:text-primary transition-colors">
                     {session.title}
                 </CardTitle>
                 <div className="flex flex-wrap gap-1 mt-2">
@@ -212,14 +210,14 @@ function PublicSessionCard({ session }: { session: Session }) {
                     ))}
                 </div>
             </CardHeader>
-            <CardContent className="flex-1 pb-4">
-                <div className="flex items-center gap-3 mb-4 p-2 bg-muted/40 rounded-lg">
+            <CardContent className="flex-1 pb-4 px-4 md:px-6">
+                <div className="flex items-center gap-3 mb-4 p-2.5 bg-muted/40 rounded-lg">
                     <Avatar className="w-10 h-10 border">
                         <AvatarFallback>{session.tutorName[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-semibold truncate">{session.tutorName}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <Calendar className="w-3 h-3" />
                             <span>{session.startTime.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
                             <span className="mx-1">•</span>
@@ -235,13 +233,13 @@ function PublicSessionCard({ session }: { session: Session }) {
                         وفر 30% مع الباقات الشهرية
                     </div>
                 )}
-                <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
+                <p className="text-sm text-muted-foreground line-clamp-3 min-h-[3.75rem]">
                     {session.description}
                 </p>
             </CardContent>
-            <CardFooter className="pt-0 border-t bg-muted/10 p-4">
+            <CardFooter className="pt-0 border-t bg-muted/10 p-4 md:px-6">
                 <Link href="/login" className="w-full">
-                    <Button className="w-full gap-2" variant="default">
+                    <Button className="w-full gap-2 h-11" variant="default">
                         <Calendar className="w-4 h-4" />
                         حجز مقعد
                     </Button>

@@ -20,6 +20,11 @@ const ibmPlex = IBM_Plex_Sans_Arabic({
 export const metadata: Metadata = {
   title: "Faiera - منصة تعليمية",
   description: "منصة تعليمية مبنية على أحدث التقنيات للتعلم عن بعد",
+  icons: {
+    icon: "/faiera-logo-ar.png",
+    shortcut: "/faiera-logo-ar.png",
+    apple: "/faiera-logo-ar.png",
+  },
 };
 
 export default function RootLayout({

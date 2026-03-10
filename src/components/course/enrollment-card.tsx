@@ -20,10 +20,8 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
     const router = useRouter();
     const { user, accessToken, loading: authLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
-
-    // Console log for debug
-    console.log('EnrollmentCard Auth State:', { user: user?.email, hasToken: !!accessToken, authLoading });
 
     const [isSaved, setIsSaved] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
@@ -38,6 +36,45 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
         const savedCourses = JSON.parse(localStorage.getItem('faiera_saved_courses') || '[]');
         setIsSaved(savedCourses.includes(course.id));
     }, [course.id]);
+
+    const handlePreviewOpen = async () => {
+        if (!previewLessonId) {
+            toast.info('لا توجد مقدمة مجانية متاحة لهذا الكورس حالياً');
+            return;
+        }
+
+        try {
+            setIsPreviewLoading(true);
+
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers['Authorization'] = `Bearer ${accessToken}`;
+            }
+
+            const response = await fetch(`${API_URL}/content/lessons/${previewLessonId}/stream-url`, {
+                headers,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+                throw new Error(errorData.message || errorData.error?.message || `HTTP ${response.status}`);
+            }
+
+            const responseBody = await response.json();
+            const videoUrl = responseBody.data?.url || responseBody.url;
+
+            if (!videoUrl) {
+                throw new Error('Video resource not found for this lesson');
+            }
+
+            setShowPreview(true);
+        } catch (error) {
+            console.warn('Preview is unavailable for this course lesson.', error);
+            toast.info('لا توجد مقدمة فيديو متاحة لهذا الكورس حالياً');
+        } finally {
+            setIsPreviewLoading(false);
+        }
+    };
 
     const handleShare = async () => {
         const shareData = {
@@ -130,18 +167,12 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.5 }}
-            className="w-full bg-card border border-border rounded-2xl overflow-hidden shadow-2xl sticky top-24 z-30"
+            className="w-full bg-card border border-border rounded-[20px] md:rounded-2xl overflow-hidden shadow-xl md:shadow-2xl lg:sticky lg:top-24 z-30"
         >
             {/* Video Thumbnail Area */}
             <div
                 className="relative aspect-video w-full group cursor-pointer overflow-hidden"
-                onClick={() => {
-                    if (previewLessonId) {
-                        setShowPreview(true);
-                    } else {
-                        toast.info('لا توجد مقدمة مجانية متاحة لهذا الكورس حالياً');
-                    }
-                }}
+                onClick={handlePreviewOpen}
             >
                 <Image
                     src={course.thumbnail || course.thumbnailUrl || '/assets/login-illustration.png'}
@@ -151,23 +182,29 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                     unoptimized
                 />
                 <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xl">
-                        <Play className="w-8 h-8 text-white fill-white ml-1" />
+                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xl">
+                        {isPreviewLoading ? (
+                            <Loader2 className="w-6 h-6 md:w-7 md:h-7 text-white animate-spin" />
+                        ) : (
+                            <Play className="w-7 h-7 md:w-8 md:h-8 text-white fill-white ml-1" />
+                        )}
                     </div>
                 </div>
                 <div className="absolute bottom-4 left-0 right-0 text-center">
-                    <span className="text-white font-bold drop-shadow-md">مشاهدة المقدمة</span>
+                    <span className="text-sm md:text-base text-white font-bold drop-shadow-md">
+                        {isPreviewLoading ? 'جارٍ تجهيز المعاينة...' : 'مشاهدة المقدمة'}
+                    </span>
                 </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 md:p-6 space-y-5 md:space-y-6">
                 {/* Price */}
-                <div className="flex items-end gap-3">
-                    <span className="text-3xl font-black text-foreground font-sans">{course.price} {course.currency || 'EGP'}</span>
-                    <span className="text-lg text-muted-foreground line-through font-sans decoration-destructive/50 mb-1">
+                <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+                    <span className="text-2xl md:text-3xl font-black text-foreground font-sans">{course.price} {course.currency || 'EGP'}</span>
+                    <span className="text-base md:text-lg text-muted-foreground line-through font-sans decoration-destructive/50 mb-1">
                         {(course.price * 1.5).toFixed(0)} {course.currency || 'EGP'}
                     </span>
-                    <span className="mr-auto text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md">
+                    <span className="mr-auto text-[11px] md:text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md">
                         خصم 33% لفترة محدودة
                     </span>
                 </div>
@@ -177,7 +214,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                     <Button
                         onClick={handleEnroll}
                         disabled={isLoading || authLoading}
-                        className="w-full text-lg h-12 font-bold font-cairo bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+                        className="w-full text-base md:text-lg h-11 md:h-12 font-bold font-cairo bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
                     >
                         {isLoading || authLoading ? (
                             <>
@@ -188,11 +225,11 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                             'اشترك الآن'
                         )}
                     </Button>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2.5 md:gap-3">
                         <Button
                             variant="outline"
                             onClick={handleSave}
-                            className="w-full border-border text-foreground hover:bg-muted hover:text-foreground bg-transparent"
+                            className="w-full h-10 md:h-11 border-border text-foreground hover:bg-muted hover:text-foreground bg-transparent text-sm"
                         >
                             <Heart className={`w-4 h-4 mr-2 ${isSaved ? 'fill-red-500 text-red-500' : ''}`} />
                             {isSaved ? 'محفوظ' : 'حفظ'}
@@ -200,7 +237,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                         <Button
                             variant="outline"
                             onClick={handleShare}
-                            className="w-full border-border text-foreground hover:bg-muted hover:text-foreground bg-transparent"
+                            className="w-full h-10 md:h-11 border-border text-foreground hover:bg-muted hover:text-foreground bg-transparent text-sm"
                         >
                             <Share2 className="w-4 h-4 mr-2" />
                             مشاركة
@@ -209,7 +246,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                 </div>
 
                 {/* Features List */}
-                <div className="space-y-3 pt-2">
+                <div className="space-y-3 pt-1 md:pt-2">
                     <h4 className="font-bold text-foreground font-cairo text-sm">مميزات الكورس:</h4>
                     <ul className="space-y-2">
                         {(course.features || []).map((feature, i) => (
@@ -226,7 +263,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                 </div>
 
                 {/* Guarantee */}
-                <div className="pt-4 border-t border-border flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <div className="pt-4 border-t border-border flex items-center justify-center gap-2 text-[11px] md:text-xs text-muted-foreground text-center">
                     <ShieldCheck className="w-4 h-4" />
                     <span>ضمان استرجاع الأموال خلال 14 يوم</span>
                 </div>

@@ -2,7 +2,7 @@
 
 import { Course } from '@/data/courses';
 import { motion } from 'framer-motion';
-import { Star, Clock, Users, PlayCircle, BarChart, ChevronLeft } from 'lucide-react';
+import { BarChart, ChevronLeft } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -12,7 +12,7 @@ interface CourseHeroProps {
 
 export function CourseHero({ course }: CourseHeroProps) {
     return (
-        <section className="relative w-full min-h-[500px] flex items-center pt-24 pb-12 overflow-hidden bg-background">
+        <section className="relative w-full min-h-[420px] md:min-h-[500px] lg:min-h-[560px] flex items-center pt-20 md:pt-24 pb-8 md:pb-12 overflow-hidden bg-background">
             {/* Background Blur Image */}
             <div className="absolute inset-0 z-0">
                 <Image
@@ -26,12 +26,11 @@ export function CourseHero({ course }: CourseHeroProps) {
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-background/50" />
             </div>
 
-            <div className="container mx-auto px-6 relative z-10">
-                <div className="flex flex-col lg:flex-row gap-8 items-start">
-                    {/* Left: Content */}
-                    <div className="flex-1 space-y-6">
+            <div className="container mx-auto px-4 md:px-6 relative z-10">
+                <div className="lg:pl-[420px] xl:pl-[450px]">
+                    <div className="max-w-3xl space-y-5 md:space-y-6">
                         {/* Breadcrumb */}
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium mb-4">
+                        <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-muted-foreground font-medium mb-3 md:mb-4">
                             <Link href="/explore" className="hover:text-primary transition-colors">تصفح الكورسات</Link>
                             <ChevronLeft className="w-4 h-4" />
                             <span className="text-foreground">{course.category}</span>
@@ -52,7 +51,7 @@ export function CourseHero({ course }: CourseHeroProps) {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 }}
-                                className="text-4xl lg:text-5xl font-black font-cairo leading-tight text-foreground"
+                                className="text-[2rem] md:text-4xl lg:text-[3.35rem] font-black font-cairo leading-[1.35] md:leading-tight text-foreground"
                             >
                                 {course.title}
                             </motion.h1>
@@ -61,56 +60,13 @@ export function CourseHero({ course }: CourseHeroProps) {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.2 }}
-                                className="text-lg text-muted-foreground leading-relaxed max-w-2xl"
+                                className="text-[15px] md:text-lg text-muted-foreground leading-7 md:leading-relaxed max-w-2xl"
                             >
                                 {course.longDescription || course.description}
                             </motion.p>
                         </div>
 
-                        {/* Stats */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="flex flex-wrap items-center gap-6 text-sm text-foreground/80"
-                        >
-                            <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-lg border border-border/50">
-                                <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                <span className="font-bold text-yellow-500">{course.rating}</span>
-                                <span className="text-muted-foreground">({course.reviewsCount || 100} تقييم)</span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <Users className="w-4 h-4 text-primary" />
-                                <span>{course.students.toLocaleString()} طالب</span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-emerald-400" />
-                                <span>آخر تحديث: يناير 2026</span>
-                            </div>
-                        </motion.div>
-
-                        {/* Author Mini Profile */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4 }}
-                            className="flex items-center gap-4 pt-4 border-t border-white/10 mt-2"
-                        >
-                            <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20">
-                                <Image src={course.author.avatar} alt={course.author.name} fill className="object-cover" unoptimized />
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">مقدم الكورس</p>
-                                <p className="font-bold text-foreground text-base">{course.author.name}</p>
-                            </div>
-                        </motion.div>
                     </div>
-
-                    {/* Right: Trailer Placeholder (Desktop only - Mobile has sticky bottom) */}
-                    {/* We leave this space for the sticky Enrollment Card which will overlap slightly */}
-                    <div className="hidden lg:block w-[400px]"></div>
                 </div>
             </div>
         </section>

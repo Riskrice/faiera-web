@@ -269,5 +269,139 @@ export const COURSES: Course[] = [
         duration: '25 ساعة',
         lessonsCount: 40,
         curriculum: []
+    },
+    {
+        id: '7',
+        title: 'الفيزياء الحديثة ومسائل الأفكار العليا',
+        description: 'كورس مخصص لأسئلة الفيزياء الحديثة والأفكار التي تحتاج تدريبًا عاليًا قبل الامتحان.',
+        thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop',
+        author: {
+            id: 'a7',
+            name: 'أ. كريم حسان',
+            avatar: 'https://i.pravatar.cc/150?u=a7',
+            role: 'مدرس فيزياء متقدمة'
+        },
+        price: 320,
+        currency: 'EGP',
+        rating: 4.9,
+        students: 6900,
+        level: '3rd Secondary',
+        category: 'physics',
+        tags: ['فيزياء حديثة', 'حل مسائل', 'أفكار عليا'],
+        duration: '28 ساعة',
+        lessonsCount: 36,
+        isNew: true,
+        curriculum: []
+    },
+    {
+        id: '8',
+        title: 'الهندسة الفراغية من التأسيس للإتقان',
+        description: 'شرح متدرج للهندسة الفراغية مع تدريبات مركزة على الرسم والتخيل وحل المسائل الامتحانية.',
+        thumbnail: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1000&auto=format&fit=crop',
+        author: {
+            id: 'a8',
+            name: 'م. ياسين طارق',
+            avatar: 'https://i.pravatar.cc/150?u=a8',
+            role: 'مدرس هندسة ورياضية'
+        },
+        price: 290,
+        currency: 'EGP',
+        rating: 4.8,
+        students: 5300,
+        level: '3rd Secondary',
+        category: 'math',
+        tags: ['هندسة', 'فراغية', 'رياضيات'],
+        duration: '22 ساعة',
+        lessonsCount: 34,
+        curriculum: []
+    },
+    {
+        id: '9',
+        title: 'الكيمياء التحليلية وحل المسائل الوزارية',
+        description: 'تدريب مكثف على الكيمياء التحليلية وربط المعادلات بالقوانين مع أسئلة من نمط الامتحان.',
+        thumbnail: 'https://images.unsplash.com/photo-1532187643603-ba119ca4109e?q=80&w=1000&auto=format&fit=crop',
+        author: {
+            id: 'a9',
+            name: 'د. آية سمير',
+            avatar: 'https://i.pravatar.cc/150?u=a9',
+            role: 'محاضرة كيمياء'
+        },
+        price: 310,
+        currency: 'EGP',
+        rating: 4.7,
+        students: 6100,
+        level: '3rd Secondary',
+        category: 'chemistry',
+        tags: ['تحليلية', 'مسائل', 'مراجعة'],
+        duration: '26 ساعة',
+        lessonsCount: 38,
+        curriculum: []
+    },
+    {
+        id: '10',
+        title: 'الأحياء: الجهاز العصبي والهرمونات',
+        description: 'شرح مبسط ومصور للجهاز العصبي والغدد الصماء مع خرائط ذهنية وأسئلة تطبيقية.',
+        thumbnail: 'https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?q=80&w=1000&auto=format&fit=crop',
+        author: {
+            id: 'a10',
+            name: 'د. نجلاء فؤاد',
+            avatar: 'https://i.pravatar.cc/150?u=a10',
+            role: 'خبيرة أحياء'
+        },
+        price: 270,
+        currency: 'EGP',
+        rating: 4.8,
+        students: 5700,
+        level: '2nd Secondary',
+        category: 'biology',
+        tags: ['جهاز عصبي', 'هرمونات', 'أحياء'],
+        duration: '24 ساعة',
+        lessonsCount: 32,
+        isNew: true,
+        curriculum: []
+    },
+    {
+        id: '11',
+        title: 'اللغة العربية: القراءة والنصوص المتحررة',
+        description: 'برنامج متكامل لفهم النصوص وتحليلها ورفع الدرجة في القراءة المتحررة والتعبير.',
+        thumbnail: 'https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1000&auto=format&fit=crop',
+        author: {
+            id: 'a11',
+            name: 'أ. شيماء نادر',
+            avatar: 'https://i.pravatar.cc/150?u=a11',
+            role: 'مدرسة لغة عربية'
+        },
+        price: 230,
+        currency: 'EGP',
+        rating: 4.7,
+        students: 4800,
+        level: '1st Secondary',
+        category: 'arabic',
+        tags: ['قراءة', 'نصوص', 'تعبير'],
+        duration: '20 ساعة',
+        lessonsCount: 30,
+        curriculum: []
+    },
+    {
+        id: '12',
+        title: 'English Conversation & Exam Writing',
+        description: 'تطوير المحادثة والكتابة للامتحان من خلال قوالب عملية وتدريبات قصيرة يومية.',
+        thumbnail: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop',
+        author: {
+            id: 'a12',
+            name: 'Mr. Omar Khaled',
+            avatar: 'https://i.pravatar.cc/150?u=a12',
+            role: 'English Communication Coach'
+        },
+        price: 240,
+        currency: 'EGP',
+        rating: 4.8,
+        students: 7200,
+        level: '2nd Secondary',
+        category: 'english',
+        tags: ['Conversation', 'Writing', 'Vocabulary'],
+        duration: '27 ساعة',
+        lessonsCount: 42,
+        curriculum: []
     }
 ];

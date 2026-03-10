@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Check, ChevronDown, Filter } from 'lucide-react';
+import { useCallback } from 'react';
+import { Check, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { CATEGORIES } from '@/data/courses';
@@ -10,7 +9,7 @@ import { CATEGORIES } from '@/data/courses';
 // Custom Checkbox Component since we can't install shadcn right now
 function CustomCheckbox({ checked, onChange, label, count }: { checked: boolean; onChange: () => void; label: string; count?: number }) {
     return (
-        <label className="flex items-center justify-between cursor-pointer group py-2">
+        <label className="flex items-center justify-between cursor-pointer group rounded-2xl border border-transparent bg-background/55 px-3 py-2.5 transition-all hover:border-border/70 hover:bg-background">
             <div className="flex items-center gap-3">
                 <div
                     className={cn(
@@ -34,7 +33,7 @@ function CustomCheckbox({ checked, onChange, label, count }: { checked: boolean;
     );
 }
 
-export function FilterSidebar() {
+export function FilterSidebar({ className }: { className?: string }) {
     const searchParams = useSearchParams();
     const pathname = usePathname();
     const { replace } = useRouter();
@@ -64,18 +63,21 @@ export function FilterSidebar() {
     }, [searchParams, pathname, replace]);
 
     return (
-        <div className="hidden lg:block w-64 shrink-0 space-y-8 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto pb-10 scrollbar-hide">
+        <div className={cn("w-full shrink-0 space-y-7 pb-2", className)}>
 
             {/* Header */}
-            <div className="flex items-center gap-2 mb-6 text-primary">
-                <Filter className="w-5 h-5" />
-                <h3 className="font-bold font-cairo text-lg">تصفية النتائج</h3>
+            <div className="space-y-3 border-b border-border/60 pb-4">
+                <div className="flex items-center gap-2 text-primary">
+                    <Filter className="w-5 h-5" />
+                    <h3 className="font-bold font-cairo text-lg">تصفية النتائج</h3>
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground">اختر المادة أو الصف لتقريب النتائج المناسبة بسرعة.</p>
             </div>
 
             {/* Categories */}
             <div className="space-y-4">
                 <h4 className="font-bold text-sm text-foreground/80 font-cairo">التصنيفات</h4>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                     {CATEGORIES.map((cat) => (
                         <CustomCheckbox
                             key={cat.id}
@@ -93,7 +95,7 @@ export function FilterSidebar() {
             {/* Years / Levels */}
             <div className="space-y-4">
                 <h4 className="font-bold text-sm text-foreground/80 font-cairo">الصف الدراسي</h4>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                     {[
                         { id: '1st Secondary', label: 'الصف الأول الثانوي' },
                         { id: '2nd Secondary', label: 'الصف الثاني الثانوي' },

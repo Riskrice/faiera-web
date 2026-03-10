@@ -36,7 +36,7 @@ export function Sidebar() {
                     <img
                         src="/logo.png"
                         alt="Faiera Logo"
-                        className="h-10 w-auto object-contain drop-shadow-sm"
+                        className="h-12 lg:h-14 w-auto object-contain drop-shadow-sm"
                         style={{ imageRendering: 'crisp-edges', WebkitFontSmoothing: 'antialiased' }}
                     />
                 </Link>
