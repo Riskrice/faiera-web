@@ -460,6 +460,14 @@ export async function getAssessments() {
     return api.get<{ data: Assessment[] }>('/assessments')
 }
 
+export async function getPublishedAssessments(grade?: string, subject?: string) {
+    const params = new URLSearchParams();
+    if (grade) params.set('grade', grade);
+    if (subject) params.set('subject', subject);
+    const qs = params.toString();
+    return api.get<{ data: Assessment[] }>(`/assessments/published${qs ? '?' + qs : ''}`);
+}
+
 export async function getAssessment(id: string) {
     return api.get<{ data: Assessment }>(`/assessments/${id}`)
 }

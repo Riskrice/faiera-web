@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
@@ -180,9 +181,7 @@ export function DashboardSidebar() {
             {/* Logo Area */}
             <div className="h-16 flex items-center px-6 border-b border-border">
                 <Link href="/" className="flex items-center gap-2 font-bold text-xl font-cairo">
-                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-black">
-                        <span className="text-lg">F</span>
-                    </div>
+                    <Image src="/logo.png" alt="فايرا" width={32} height={32} className="rounded-lg" />
                     <span>{title}</span>
                 </Link>
             </div>

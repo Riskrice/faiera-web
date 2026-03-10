@@ -43,7 +43,12 @@ export default function StudentSubscriptionsPage() {
                 if (!response.ok) throw new Error("فشل تحميل الباقات")
 
                 const data = await response.json()
-                setPlans(data.data || [])
+                const rawPlans = data.data || []
+                const normalized = rawPlans.map((p: any) => ({
+                    ...p,
+                    features: Array.isArray(p.features) ? p.features : [],
+                }))
+                setPlans(normalized)
             } catch (error) {
                 console.error("Error fetching plans:", error)
                 toast.error("حدث خطأ أثناء تحميل الباقات")

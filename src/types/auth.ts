@@ -25,4 +25,7 @@ export interface AuthResponse {
 }
 
 export interface LoginResponse extends AuthResponse { }
-export interface RegisterResponse extends AuthResponse { }
+export interface RegisterResponse {
+    user: User;
+    requiresOtp: boolean;
+}

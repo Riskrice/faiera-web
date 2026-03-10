@@ -36,7 +36,7 @@ interface RecentSale {
 }
 
 export default function DashboardPage() {
-    const { accessToken } = useAuth()
+    const { accessToken, user } = useAuth()
     const [stats, setStats] = useState<OverviewStats | null>(null)
     const [revenueData, setRevenueData] = useState<RevenueDataPoint[]>([])
     const [recentSales, setRecentSales] = useState<RecentSale[]>([])
@@ -56,6 +56,13 @@ export default function DashboardPage() {
     useEffect(() => {
         const fetchDashboardData = async () => {
             if (!accessToken) {
+                setStats(defaultStats)
+                setLoading(false)
+                return
+            }
+
+            const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+            if (!isAdmin) {
                 setStats(defaultStats)
                 setLoading(false)
                 return

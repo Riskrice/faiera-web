@@ -29,6 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkAuth();
     }, []);
 
+    const getFriendlyAuthError = (err: any, fallbackMessage: string) => {
+        if (err?.statusCode === 429 || /too many requests|throttlerexception/i.test(err?.message || '')) {
+            return 'تم تجاوز عدد المحاولات المسموح به مؤقتًا. انتظر دقيقة ثم حاول مرة أخرى.';
+        }
+
+        return err?.message || fallbackMessage;
+    };
+
     const checkAuth = async () => {
         let token = null;
         try {
@@ -165,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return { error: null };
         } catch (err: any) {
             console.error('Login error details:', err);
-            return { error: new Error(err.message || 'Login failed') };
+            return { error: new Error(getFriendlyAuthError(err, 'Login failed')) };
         }
     };
 
@@ -174,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await api.post('/auth/request-otp', { email });
             return { error: null };
         } catch (err: any) {
-            return { error: new Error(err.message || 'Failed to request OTP') };
+            return { error: new Error(getFriendlyAuthError(err, 'Failed to send verification code')) };
         }
     };
 
@@ -201,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             return { error: null };
         } catch (err: any) {
-            return { error: new Error(err.message || 'Invalid OTP') };
+            return { error: new Error(getFriendlyAuthError(err, 'Invalid verification code')) };
         }
     };
 
@@ -211,23 +219,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const [firstName, ...lastNameParts] = (metadata?.name || '').split(' ');
             const lastName = lastNameParts.join(' ') || 'User';
 
-            const response = await api.post<{ data: RegisterResponse }>('/auth/register', {
+            await api.post<{ data: RegisterResponse }>('/auth/register', {
                 email,
                 password,
                 firstName: firstName || 'New',
                 lastName: lastName,
             });
-
-            const { user, tokens } = response.data;
-
-            // Auto-login after registration
-            handleLoginSuccess(user, tokens, false);
-
-            // Redirect to student dashboard (new users are always students)
-            router.push('/student');
             return { error: null };
         } catch (err: any) {
-            return { error: new Error(err.message || 'Registration failed') };
+            return { error: new Error(getFriendlyAuthError(err, 'Registration failed')) };
         }
     };
 
@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         logout();
-        router.push('/login');
+        router.replace('/login');
     };
 
     const logout = () => {

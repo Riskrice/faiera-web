@@ -7,8 +7,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Loader2, Mail, Lock, User, Check, X } from 'lucide-react';
-import Link from 'next/link';
+import { Loader2, Mail, Lock, User, ShieldCheck, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts';
 
@@ -40,7 +39,11 @@ type RegisterValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
     const [isLoading, setIsLoading] = React.useState(false);
-    const { signUp } = useAuth();
+    const [isOtpLoading, setIsOtpLoading] = React.useState(false);
+    const [isResendingOtp, setIsResendingOtp] = React.useState(false);
+    const [verificationEmail, setVerificationEmail] = React.useState('');
+    const [otpCode, setOtpCode] = React.useState('');
+    const { signUp, verifyOtp, requestOtp } = useAuth();
 
     // Watch password for strength meter
     const [passwordStrength, setPasswordStrength] = React.useState(0);
@@ -81,10 +84,51 @@ export function RegisterForm() {
                 description: error.message || 'حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.',
             });
         } else {
-            toast.success('تم إنشاء الحساب بنجاح', {
-                description: 'أهلاً بك في منصة فاير! تفقد بريدك الإلكتروني للتفعيل.',
+            setVerificationEmail(data.email);
+            setOtpCode('');
+            toast.success('تم إنشاء الحساب', {
+                description: 'أرسلنا كود تحقق إلى بريدك الإلكتروني. أدخله لإتمام التفعيل.',
             });
         }
+    }
+
+    async function handleVerifyOtp() {
+        if (!verificationEmail || otpCode.trim().length !== 6) {
+            toast.error('أدخل كود التحقق المكوّن من 6 أرقام');
+            return;
+        }
+
+        setIsOtpLoading(true);
+        const { error } = await verifyOtp(verificationEmail, otpCode.trim(), false);
+        setIsOtpLoading(false);
+
+        if (error) {
+            toast.error('فشل التحقق من الكود', {
+                description: error.message || 'الكود غير صحيح أو انتهت صلاحيته.',
+            });
+            return;
+        }
+
+        toast.success('تم تفعيل الحساب بنجاح');
+    }
+
+    async function handleResendOtp() {
+        if (!verificationEmail) {
+            return;
+        }
+
+        setIsResendingOtp(true);
+        const { error } = await requestOtp(verificationEmail);
+        setIsResendingOtp(false);
+
+        if (error) {
+            toast.error('تعذر إعادة إرسال الكود', {
+                description: error.message || 'حاول مرة أخرى بعد قليل.',
+            });
+            return;
+        }
+
+        toast.success('تم إرسال كود جديد إلى بريدك الإلكتروني');
     }
 
     const getStrengthColor = (score: number) => {
@@ -95,6 +139,63 @@ export function RegisterForm() {
 
     return (
         <div className="grid gap-6">
+            {verificationEmail ? (
+                <div className="grid gap-4">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-right">
+                        <div className="mb-2 flex items-center justify-end gap-2 text-primary">
+                            <ShieldCheck className="h-4 w-4" />
+                            <span className="text-sm font-bold">تأكيد البريد الإلكتروني</span>
+                        </div>
+                        <p className="text-sm leading-7 text-muted-foreground">
+                            أنشأنا الحساب بنجاح وأرسلنا كود OTP إلى
+                            {' '}
+                            <span className="font-bold text-foreground">{verificationEmail}</span>
+                            . أدخل الكود لتفعيل الحساب وإتمام تسجيل الدخول.
+                        </p>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="otpCode">كود التحقق</Label>
+                        <div className="relative">
+                            <ShieldCheck className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="otpCode"
+                                placeholder="123456"
+                                inputMode="numeric"
+                                maxLength={6}
+                                disabled={isOtpLoading}
+                                value={otpCode}
+                                onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                                className="pr-9 text-right font-sans tracking-[0.35em]"
+                            />
+                        </div>
+                    </div>
+
+                    <Button type="button" onClick={handleVerifyOtp} disabled={isOtpLoading} className="mt-2 text-base h-11">
+                        {isOtpLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        تأكيد الكود وتفعيل الحساب
+                    </Button>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button type="button" variant="outline" onClick={handleResendOtp} disabled={isResendingOtp} className="flex-1">
+                            {isResendingOtp && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                            إعادة إرسال الكود
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="flex-1"
+                            onClick={() => {
+                                setVerificationEmail('');
+                                setOtpCode('');
+                            }}
+                        >
+                            <RotateCcw className="ml-2 h-4 w-4" />
+                            تعديل البريد أو البيانات
+                        </Button>
+                    </div>
+                </div>
+            ) : (
             <form onSubmit={form.handleSubmit(onSubmit)}>
                 <div className="grid gap-4">
                     {/* Full Name */}
@@ -205,10 +306,7 @@ export function RegisterForm() {
                     </Button>
                 </div>
             </form>
-
-
-
-
+            )}
         </div>
     );
 }

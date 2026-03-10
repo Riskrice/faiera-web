@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts"
-import { getAssessments, Assessment, AssessmentStatus } from "@/lib/api"
+import { getPublishedAssessments, Assessment } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,11 +27,9 @@ export default function StudentAssessmentsPage() {
                 // Assuming we have an endpoint or filter for published items.
                 // Reusing getAssessments but ideally we need getStudentAssessments
                 // Let's assume getAssessments returns what is allowed.
-                const response = await getAssessments()
+                const response = await getPublishedAssessments()
                 if (response.data) {
-                    // Filter for published only if the API returns mixed
-                    const published = response.data.filter(a => a.status === AssessmentStatus.PUBLISHED)
-                    setAssessments(published)
+                    setAssessments(response.data)
                 }
             } catch (error) {
                 console.error("Failed to fetch assessments", error)
