@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Check, Loader2, Sparkles, Star, Zap } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts"
+import { rememberPendingCheckout, trackEvent } from "@/lib/gtm"
 
 type Plan = {
     id: string
@@ -65,6 +66,24 @@ export default function StudentSubscriptionsPage() {
             toast.error("يجب تسجيل الدخول أولاً")
             return
         }
+
+        const checkoutPayload = {
+            checkout_type: 'subscription',
+            currency: plan.currency,
+            value: plan.price,
+            items: [
+                {
+                    item_id: plan.id,
+                    item_name: plan.nameEn || plan.nameAr,
+                    item_category: 'subscription',
+                    price: plan.price,
+                    quantity: 1,
+                },
+            ],
+        }
+
+        rememberPendingCheckout(checkoutPayload)
+        trackEvent('begin_checkout', checkoutPayload)
 
         try {
             setActionLoading(plan.id)

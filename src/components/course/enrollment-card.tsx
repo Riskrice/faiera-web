@@ -7,6 +7,7 @@ import { CheckCircle2, Play, ShieldCheck, Share2, Heart, Loader2 } from 'lucide-
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { rememberPendingCheckout, trackEvent } from '@/lib/gtm';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -128,6 +129,24 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
             router.push(`/courses/${course.id}/learn`);
             return;
         }
+
+        const checkoutPayload = {
+            checkout_type: 'course',
+            currency: course.currency || 'EGP',
+            value: course.price,
+            items: [
+                {
+                    item_id: course.id,
+                    item_name: course.titleEn || course.titleAr || course.title,
+                    item_category: 'course',
+                    price: course.price,
+                    quantity: 1,
+                },
+            ],
+        };
+
+        rememberPendingCheckout(checkoutPayload);
+        trackEvent('begin_checkout', checkoutPayload);
 
         setIsLoading(true);
 

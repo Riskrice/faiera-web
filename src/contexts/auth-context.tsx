@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { trackEvent } from '@/lib/gtm';
 import { User, LoginResponse, RegisterResponse, AuthTokens } from '@/types/auth';
 
 interface AuthContextType {
@@ -155,6 +156,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { user, tokens } = response.data;
 
             handleLoginSuccess(user, tokens, remember);
+            trackEvent('login', {
+                method: 'email_password',
+                user_role: user.role,
+            });
 
             // Redirect based on role
             switch (user.role) {
@@ -192,6 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { user, tokens } = response.data;
 
             handleLoginSuccess(user, tokens, remember);
+            trackEvent('login', {
+                method: 'email_otp',
+                user_role: user.role,
+            });
 
             // Redirect based on role
             switch (user.role) {
@@ -219,12 +228,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const [firstName, ...lastNameParts] = (metadata?.name || '').split(' ');
             const lastName = lastNameParts.join(' ') || 'User';
 
-            await api.post<{ data: RegisterResponse }>('/auth/register', {
+            const response = await api.post<{ data: RegisterResponse }>('/auth/register', {
                 email,
                 password,
                 firstName: firstName || 'New',
                 lastName: lastName,
             });
+
+            trackEvent('sign_up', {
+                method: 'email_otp',
+                user_role: response.data.user.role,
+            });
+
             return { error: null };
         } catch (err: any) {
             return { error: new Error(getFriendlyAuthError(err, 'Registration failed')) };

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CheckCircle2, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { consumePendingCheckout, trackEvent } from "@/lib/gtm"
 
 function PaymentSuccessContent() {
     const router = useRouter()
@@ -16,6 +17,14 @@ function PaymentSuccessContent() {
     useEffect(() => {
         if (transactionId) {
             toast.success("تم تأكيد عملية الدفع بنجاح ✅")
+        }
+
+        const pendingCheckout = consumePendingCheckout()
+        if (pendingCheckout) {
+            trackEvent('purchase', {
+                transaction_id: transactionId || `faiera-${Date.now()}`,
+                ...pendingCheckout,
+            })
         }
     }, [transactionId])
 

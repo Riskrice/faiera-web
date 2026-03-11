@@ -1,15 +1,20 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { XCircle, RefreshCcw, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { clearPendingCheckout } from "@/lib/gtm"
 
 function PaymentFailedContent() {
     const searchParams = useSearchParams()
     const transactionId = searchParams.get('transactionId')
+
+    useEffect(() => {
+        clearPendingCheckout()
+    }, [])
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-50/50 p-4">
