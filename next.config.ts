@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
         hostname: 'localhost',
         port: '3000',
       },
+      {
+        protocol: 'https',
+        hostname: 'api.faiera.com',
+      },
     ],
   },
 };

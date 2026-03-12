@@ -21,7 +21,7 @@ export function OverviewChart({ data = [] }: OverviewChartProps) {
     }
 
     return (
-        <ResponsiveContainer width="100%" height={350}>
+        <ResponsiveContainer width="100%" height={350} minWidth={0}>
             <BarChart data={data}>
                 <XAxis
                     dataKey="name"
