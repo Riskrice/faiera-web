@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, useFieldArray } from "react-hook-form"
 import { z } from "zod"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 import {
     BookOpen,
     Check,
@@ -64,14 +65,16 @@ const steps = [
     { id: 4, name: "مراجعة ونشر", icon: Check },
 ]
 
-export function AddCourseWizard({ children, course }: { children: React.ReactNode, course?: Partial<CourseFormValues> }) {
+export function AddCourseWizard({ children, course, courseId }: { children: React.ReactNode, course?: Partial<CourseFormValues>, courseId?: string }) {
     const { accessToken } = useAuth()
+    const router = useRouter()
     const [open, setOpen] = useState(false)
     const [currentStep, setCurrentStep] = useState(1)
     const [isSuccess, setIsSuccess] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [programs, setPrograms] = useState<any[]>([])
     const [teachers, setTeachers] = useState<any[]>([])
+    const [savedCourseId, setSavedCourseId] = useState<string | null>(null)
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'
 
@@ -115,47 +118,64 @@ export function AddCourseWizard({ children, course }: { children: React.ReactNod
         setIsSubmitting(true);
 
         try {
-            // Transform data for Backend
-            const payload = {
-                titleAr: data.title,
-                titleEn: data.title,
-                descriptionAr: data.description,
-                descriptionEn: data.description,
-                subject: data.subject,
-                grade: data.grade,
-                term: data.term,
-                teacherId: data.teacherId,
-                thumbnailUrl: data.thumbnail,
-                price: data.price || 0,
-                currency: data.currency || 'EGP',
-                sections: data.sections.map(section => ({
-                    titleAr: section.title,
-                    titleEn: section.title,
-                    lessons: section.lessons.map(lesson => ({
-                        titleAr: lesson.title,
-                        titleEn: lesson.title,
-                        type: lesson.type,
-                        durationMinutes: lesson.duration ? Math.floor((lesson.duration as number) / 60) : 0,
-                        isFree: lesson.isFree,
-                        videoId: lesson.videoUrl,
-                        videoUrl: lesson.videoUrl,
-                        contentAr: lesson.articleContent,
-                        contentEn: lesson.articleContent,
+            const isEditing = !!courseId;
+
+            if (isEditing) {
+                // Edit: only send basic fields (UpdateCourseDto)
+                const updatePayload = {
+                    titleAr: data.title,
+                    titleEn: data.title,
+                    descriptionAr: data.description,
+                    descriptionEn: data.description,
+                    subject: data.subject,
+                    grade: data.grade,
+                    term: data.term,
+                    teacherId: data.teacherId,
+                    thumbnailUrl: data.thumbnail,
+                    price: data.price || 0,
+                    currency: data.currency || 'EGP',
+                };
+
+                await api.put<any>(`/content/courses/${courseId}`, updatePayload);
+                setSavedCourseId(courseId);
+                setIsSuccess(true);
+                toast.success("تم تحديث الكورس بنجاح!");
+            } else {
+                // Create: send full payload including sections
+                const payload = {
+                    titleAr: data.title,
+                    titleEn: data.title,
+                    descriptionAr: data.description,
+                    descriptionEn: data.description,
+                    subject: data.subject,
+                    grade: data.grade,
+                    term: data.term,
+                    teacherId: data.teacherId,
+                    thumbnailUrl: data.thumbnail,
+                    price: data.price || 0,
+                    currency: data.currency || 'EGP',
+                    sections: data.sections.map(section => ({
+                        titleAr: section.title,
+                        titleEn: section.title,
+                        lessons: section.lessons.map(lesson => ({
+                            titleAr: lesson.title,
+                            titleEn: lesson.title,
+                            type: lesson.type,
+                            durationMinutes: lesson.duration ? Math.floor((lesson.duration as number) / 60) : 0,
+                            isFree: lesson.isFree,
+                            videoId: lesson.videoUrl,
+                            videoUrl: lesson.videoUrl,
+                            contentAr: lesson.articleContent,
+                            contentEn: lesson.articleContent,
+                        }))
                     }))
-                }))
+                };
+
+                const result = await api.post<any>('/content/courses', payload);
+                setSavedCourseId(result.data?.id || null);
+                setIsSuccess(true);
+                toast.success("تم إنشاء الكورس بنجاح!");
             }
-
-            const result = await api.post<any>('/content/courses', payload);
-
-            setIsSuccess(true);
-            toast.success("تم إنشاء الكورس بنجاح!");
-
-            setTimeout(() => {
-                setOpen(false)
-                setIsSuccess(false)
-                setCurrentStep(1)
-                form.reset()
-            }, 2000)
 
         } catch (error: any) {
             console.error("Submission failed:", error);
@@ -192,7 +212,8 @@ export function AddCourseWizard({ children, course }: { children: React.ReactNod
             fieldsToValidate = ["title", "description", "subject", "grade", "term", "language"]
         } else if (currentStep === 2) {
             fieldsToValidate = ["price", "currency", "thumbnail"]
-        } else if (currentStep === 3) {
+        } else if (currentStep === 3 && !courseId) {
+            // Skip sections validation when editing (sections managed separately in course detail)
             fieldsToValidate = ["sections"]
         }
 
@@ -264,17 +285,28 @@ export function AddCourseWizard({ children, course }: { children: React.ReactNod
                                 <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-500/20">
                                     <Check className="w-12 h-12 text-emerald-600" />
                                 </div>
-                                <h2 className="text-3xl font-bold text-foreground mb-4 font-cairo">تم نشر الكورس بنجاح! 🎉</h2>
+                                <h2 className="text-3xl font-bold text-foreground mb-4 font-cairo">
+                                    {courseId ? 'تم تحديث الكورس بنجاح! ✅' : 'تم إنشاء الكورس بنجاح! 🎉'}
+                                </h2>
                                 <p className="text-muted-foreground max-w-md mb-8 text-lg">
-                                    الكورس الخاص بك "{form.getValues("title")}" أصبح جاهزاً الآن. يمكنك البدء في استقبال الطلاب.
+                                    {courseId
+                                        ? `تم حفظ التغييرات على كورس "${form.getValues("title")}".`
+                                        : `الكورس الخاص بك "${form.getValues("title")}" أصبح جاهزاً. يمكنك الآن إضافة المحتوى.`}
                                 </p>
-                                <div className="flex gap-4">
+                                <div className="flex gap-4 flex-wrap justify-center">
                                     <Button variant="outline" onClick={handleReset} className="min-w-[140px]">
                                         إغلاق
                                     </Button>
-                                    <Button variant="emerald" onClick={() => { setIsSuccess(false); setCurrentStep(1); form.reset(); }} className="min-w-[140px] gap-2">
-                                        <Plus className="w-4 h-4" /> إضافة كورس آخر
-                                    </Button>
+                                    {savedCourseId && (
+                                        <Button variant="default" onClick={() => { handleReset(); router.push(`/dashboard/courses/${savedCourseId}`); }} className="min-w-[140px] gap-2">
+                                            <BookOpen className="w-4 h-4" /> إدارة الكورس
+                                        </Button>
+                                    )}
+                                    {!courseId && (
+                                        <Button variant="emerald" onClick={() => { setIsSuccess(false); setCurrentStep(1); setSavedCourseId(null); form.reset(); }} className="min-w-[140px] gap-2">
+                                            <Plus className="w-4 h-4" /> إضافة كورس آخر
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         ) : (

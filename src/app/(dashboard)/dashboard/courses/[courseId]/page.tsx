@@ -125,15 +125,17 @@ export default function CourseDetailPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <AddCourseWizard course={{
-                        title: title,
-                        subject: course.subject || '',
-                        grade: course.grade || '',
-                        term: '',
-                        price: course.price || 0,
-                        currency: course.currency || 'EGP',
-                        sections: []
-                    }}>
+                    <AddCourseWizard
+                        courseId={course.id}
+                        course={{
+                            title: title,
+                            subject: course.subject || '',
+                            grade: course.grade || '',
+                            term: '',
+                            price: course.price || 0,
+                            currency: course.currency || 'EGP',
+                            sections: []
+                        }}>
                         <Button variant="outline" className="gap-2">
                             <Pencil className="w-4 h-4" />
                             تعديل الكورس

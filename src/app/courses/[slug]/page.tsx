@@ -5,7 +5,7 @@ import { EnrollmentCard } from '@/components/course/enrollment-card';
 import { CurriculumList } from '@/components/course/curriculum-list';
 import { Navbar, Footer } from '@/components/layout';
 import { CheckCircle2, UserCheck, PlayCircle, Star, Clock, Users } from 'lucide-react';
-import Image from 'next/image';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { notFound } from 'next/navigation';
 import { isDemoContentEnabled } from '@/lib/demo-content';
 
@@ -251,9 +251,10 @@ export default async function CoursePage({ params }: PageProps) {
 
                             <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4 md:flex-row md:items-center md:justify-between">
                                 <div className="flex items-center gap-3 md:gap-4">
-                                    <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-primary/20 shrink-0">
-                                        <Image src={course.author.avatar} alt={course.author.name} fill className="object-cover" unoptimized />
-                                    </div>
+                                    <Avatar className="w-14 h-14 border-2 border-primary/20 shrink-0">
+                                        <AvatarImage src={course.author.avatar} alt={course.author.name} className="object-cover" />
+                                        <AvatarFallback className="text-sm font-bold">{course.author.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}</AvatarFallback>
+                                    </Avatar>
                                     <div>
                                         <p className="text-xs md:text-sm text-muted-foreground">مقدم الكورس</p>
                                         <p className="font-bold text-foreground text-sm md:text-base">{course.author.name}</p>
@@ -282,9 +283,10 @@ export default async function CoursePage({ params }: PageProps) {
                         <div className="space-y-6">
                             <h3 className="text-xl md:text-2xl font-bold font-cairo text-foreground">عن المحاضر</h3>
                             <div className="bg-card border border-border rounded-[20px] md:rounded-2xl p-5 md:p-8 flex flex-col md:flex-row gap-5 md:gap-8 items-center md:items-start text-center md:text-right">
-                                <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden shrink-0 border-4 border-primary/10">
-                                    <Image src={course.author.avatar} alt={course.author.name} fill className="object-cover" unoptimized />
-                                </div>
+                                <Avatar className="w-24 h-24 md:w-32 md:h-32 shrink-0 border-4 border-primary/10">
+                                    <AvatarImage src={course.author.avatar} alt={course.author.name} className="object-cover" />
+                                    <AvatarFallback className="text-2xl font-bold">{course.author.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}</AvatarFallback>
+                                </Avatar>
                                 <div className="flex-1 space-y-4">
                                     <div>
                                         <h4 className="text-lg md:text-xl font-bold text-foreground mb-1">{course.author.name}</h4>

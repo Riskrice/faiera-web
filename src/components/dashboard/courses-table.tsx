@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Edit, Trash2, Eye, ArrowUpDown, Search, X, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
+import { AddCourseWizard } from "@/components/courses/add-course-wizard";
 import { useSearchParams } from "next/navigation";
 import {
     Dialog,
@@ -289,6 +290,28 @@ export function CoursesTable() {
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
                                             </Link>
+                                            <AddCourseWizard
+                                                courseId={course.id}
+                                                course={{
+                                                    title: course.title,
+                                                    price: course.price,
+                                                    currency: course.currency,
+                                                }}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-500">
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            </AddCourseWizard>
+                                            <AddCourseWizard
+                                                courseId={course.id}
+                                                course={{
+                                                    title: course.title,
+                                                    price: course.price,
+                                                    currency: course.currency,
+                                                }}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-500">
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            </AddCourseWizard>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
