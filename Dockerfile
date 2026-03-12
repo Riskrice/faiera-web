@@ -7,7 +7,7 @@ RUN npm ci
 COPY . .
 # Set environment variables for build if needed
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_API_URL=https://api.faiera.com
+ARG NEXT_PUBLIC_API_URL=https://api.faiera.com/api/v1
 ARG NEXT_PUBLIC_SOCKET_URL=https://api.faiera.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
