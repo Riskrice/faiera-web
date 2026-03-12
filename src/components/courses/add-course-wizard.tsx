@@ -192,12 +192,36 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
         mode: "onChange",
     })
 
-    // Reset form when dialog opens
+    // Reset form when dialog opens — if editing, fetch full course data from API
     useEffect(() => {
-        if (open) {
-            form.reset(course ? { ...defaultCourseValues, ...course } : defaultCourseValues)
+        if (!open) return
+
+        if (courseId) {
+            // Fetch full course data to pre-fill all fields
+            api.get<any>(`/content/courses/${courseId}`).then((result) => {
+                const c = result.data || result
+                form.reset({
+                    ...defaultCourseValues,
+                    title: c.titleAr || c.titleEn || '',
+                    description: c.descriptionAr || c.descriptionEn || '',
+                    subject: c.subject || '',
+                    grade: c.grade || '',
+                    term: c.term || '',
+                    teacherId: c.teacher?.id || c.teacherId || '',
+                    language: c.language || 'ar',
+                    price: Number(c.price) || 0,
+                    currency: c.currency || 'EGP',
+                    thumbnail: c.thumbnailUrl || '',
+                    sections: [],
+                } as CourseFormValues)
+            }).catch(() => {
+                // fallback to whatever was passed via props
+                form.reset(course ? { ...defaultCourseValues, ...course } : defaultCourseValues)
+            })
+        } else {
+            form.reset(defaultCourseValues)
         }
-    }, [open, course, form])
+    }, [open, courseId])
 
     // Field Arrays for Curriculum
     const { fields: sections, append: appendSection, remove: removeSection } = useFieldArray({
