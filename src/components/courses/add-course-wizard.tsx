@@ -197,9 +197,27 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
         if (!open) return
 
         if (courseId) {
-            // Fetch full course data to pre-fill all fields
-            api.get<any>(`/content/courses/${courseId}`).then((result) => {
+            // Fetch full course data (with modules) to pre-fill all fields
+            api.get<any>(`/content/courses/${courseId}?includeModules=true`).then((result) => {
                 const c = result.data || result
+                const mappedSections = (c.modules || [])
+                    .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+                    .map((m: any) => ({
+                        id: m.id,
+                        title: m.titleAr || m.titleEn || '',
+                        lessons: (m.lessons || [])
+                            .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+                            .map((l: any) => ({
+                                id: l.id,
+                                title: l.titleAr || l.titleEn || '',
+                                type: l.type || 'video',
+                                isFree: l.isFree || false,
+                                duration: l.durationMinutes || 0,
+                                videoUrl: '',
+                                articleContent: l.contentAr || l.contentEn || '',
+                                attachments: [],
+                            })),
+                    }))
                 form.reset({
                     ...defaultCourseValues,
                     title: c.titleAr || c.titleEn || '',
@@ -212,7 +230,7 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                     price: Number(c.price) || 0,
                     currency: c.currency || 'EGP',
                     thumbnail: c.thumbnailUrl || '',
-                    sections: [],
+                    sections: mappedSections.length > 0 ? mappedSections : (defaultCourseValues.sections as any),
                 } as CourseFormValues)
             }).catch(() => {
                 // fallback to whatever was passed via props
