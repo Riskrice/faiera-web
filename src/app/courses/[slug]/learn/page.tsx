@@ -8,6 +8,41 @@ import { notFound } from 'next/navigation';
 import { ChevronRight, Flag } from 'lucide-react';
 import Link from 'next/link';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.faiera.com/api/v1';
+const API_ORIGIN = (() => {
+    try {
+        return new URL(API_BASE_URL).origin;
+    } catch {
+        return 'https://api.faiera.com';
+    }
+})();
+
+function getGeneratedAvatar(name: string): string {
+    const encoded = encodeURIComponent(name || 'Faiera Instructor');
+    return `https://ui-avatars.com/api/?name=${encoded}&background=10b981&color=ffffff&size=256&bold=true`;
+}
+
+function normalizeAvatarUrl(raw?: string): string | null {
+    if (!raw) return null;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    if (raw.startsWith('/')) return `${API_ORIGIN}${raw}`;
+    return null;
+}
+
+async function resolveInstructorAvatarUrl(rawAvatar: string | undefined, instructorName: string): Promise<string> {
+    const normalized = normalizeAvatarUrl(rawAvatar);
+    const fallback = getGeneratedAvatar(instructorName);
+
+    if (!normalized) return fallback;
+
+    try {
+        const res = await fetch(normalized, { method: 'HEAD', cache: 'no-store' });
+        return res.ok ? normalized : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
 type LearnLesson = {
     id: string;
     title: string;
@@ -16,6 +51,7 @@ type LearnLesson = {
     isFree: boolean;
     articleContent?: string;
     assessmentId?: string;
+    attachments?: Array<{ id: string; name: string; url: string; size?: string }>;
 };
 
 interface PageProps {
@@ -51,6 +87,14 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
             isFree: lesson.isFree,
             articleContent: (lesson as any).contentAr || (lesson as any).contentEn || '',
             assessmentId: (lesson as any).assessmentId,
+            attachments: Array.isArray((lesson as any).attachments)
+                ? (lesson as any).attachments.map((attachment: any, index: number) => ({
+                    id: attachment?.id || `${lesson.id}-att-${index}`,
+                    name: attachment?.name || 'مرفق',
+                    url: attachment?.url || '',
+                    size: attachment?.size,
+                })).filter((attachment: any) => !!attachment.url)
+                : [],
         })),
     }));
 
@@ -79,13 +123,15 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
         ? `${(apiCourse as any).teacher.user.firstName || ''} ${(apiCourse as any).teacher.user.lastName || ''}`.trim()
         : 'Faiera Instructor';
 
-    const instructorAvatar =
+    const instructorAvatarRaw =
         (apiCourse as any).teacher?.user?.metadata?.avatar ||
         (apiCourse as any).teacher?.user?.metadata?.avatarUrl ||
         (apiCourse as any).teacher?.user?.metadata?.avatar_url ||
         (apiCourse as any).teacher?.user?.metadata?.picture ||
         (apiCourse as any).teacher?.user?.avatarUrl ||
         '';
+
+    const instructorAvatar = await resolveInstructorAvatarUrl(instructorAvatarRaw, instructorName);
 
     // Build compatible course object for PlaylistSidebar and LessonTabs
     const course = {

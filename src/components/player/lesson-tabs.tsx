@@ -27,6 +27,10 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
         .slice(0, 2)
         .toUpperCase()
 
+    const attachments = Array.isArray((lesson as any)?.attachments)
+        ? (lesson as any).attachments.filter((item: any) => !!item?.url)
+        : []
+
     return (
         <Tabs defaultValue="overview" className="w-full">
             <div className="border-b border-white/5 overflow-x-auto hide-scrollbar">
@@ -65,27 +69,25 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
                     </div>
                 </div>
 
-                <div className="space-y-3">
-                    <h3 className="font-bold text-foreground text-lg font-cairo">ملفات ومرفقات</h3>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                        <Button variant="outline" className="justify-start border-border hover:bg-muted h-auto py-3 text-right min-h-[76px]">
-                            <FileText className="w-5 h-5 ml-3 text-blue-500" />
-                            <div className="flex flex-col items-start text-foreground">
-                                <span className="font-bold">ملخص الدرس PDF</span>
-                                <span className="text-xs text-muted-foreground">2.5 MB</span>
-                            </div>
-                            <Download className="w-4 h-4 mr-auto text-muted-foreground" />
-                        </Button>
-                        <Button variant="outline" className="justify-start border-border hover:bg-muted h-auto py-3 text-right min-h-[76px]">
-                            <FileText className="w-5 h-5 ml-3 text-emerald-500" />
-                            <div className="flex flex-col items-start text-foreground">
-                                <span className="font-bold">ورقة التدريبات (Workshop)</span>
-                                <span className="text-xs text-muted-foreground">1.2 MB</span>
-                            </div>
-                            <Download className="w-4 h-4 mr-auto text-muted-foreground" />
-                        </Button>
+                {attachments.length > 0 && (
+                    <div className="space-y-3">
+                        <h3 className="font-bold text-foreground text-lg font-cairo">ملفات ومرفقات</h3>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                            {attachments.map((attachment: any, index: number) => (
+                                <Button key={attachment.id || index} variant="outline" asChild className="justify-start border-border hover:bg-muted h-auto py-3 text-right min-h-[76px]">
+                                    <a href={attachment.url} target="_blank" rel="noreferrer" className="w-full">
+                                        <FileText className="w-5 h-5 ml-3 text-blue-500" />
+                                        <div className="flex flex-col items-start text-foreground">
+                                            <span className="font-bold">{attachment.name || 'مرفق'}</span>
+                                            {attachment.size ? <span className="text-xs text-muted-foreground">{attachment.size}</span> : null}
+                                        </div>
+                                        <Download className="w-4 h-4 mr-auto text-muted-foreground" />
+                                    </a>
+                                </Button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </TabsContent>
 
             <TabsContent value="qa" className="py-5 md:py-6">
