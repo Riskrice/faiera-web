@@ -13,6 +13,20 @@ interface LessonTabsProps {
 }
 
 export function LessonTabs({ lesson, course }: LessonTabsProps) {
+    const author = course?.author || {
+        name: 'Faiera Instructor',
+        avatar: '',
+        role: 'Instructor',
+    }
+
+    const authorInitials = (author.name || 'FI')
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+
     return (
         <Tabs defaultValue="overview" className="w-full">
             <div className="border-b border-white/5 overflow-x-auto hide-scrollbar">
@@ -42,12 +56,12 @@ export function LessonTabs({ lesson, course }: LessonTabsProps) {
 
                 <div className="flex items-center gap-3 md:gap-4 bg-card p-4 rounded-xl border border-border">
                     <Avatar className="w-12 h-12 border-2 border-border">
-                        <AvatarImage src={course.author.avatar} />
-                        <AvatarFallback>MR</AvatarFallback>
+                        <AvatarImage src={author.avatar} />
+                        <AvatarFallback>{authorInitials}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <h4 className="font-bold text-foreground">{course.author.name}</h4>
-                        <p className="text-xs text-muted-foreground">{course.author.role}</p>
+                        <h4 className="font-bold text-foreground">{author.name}</h4>
+                        <p className="text-xs text-muted-foreground">{author.role}</p>
                     </div>
                 </div>
 

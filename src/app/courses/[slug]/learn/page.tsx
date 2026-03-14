@@ -62,10 +62,28 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
     const courseTitle = apiCourse.titleAr || apiCourse.titleEn;
     const isQuiz = activeLesson.type === 'quiz';
 
+    const instructorName = (apiCourse as any).teacher?.user
+        ? `${(apiCourse as any).teacher.user.firstName || ''} ${(apiCourse as any).teacher.user.lastName || ''}`.trim()
+        : 'Faiera Instructor';
+
+    const instructorAvatar =
+        (apiCourse as any).teacher?.user?.metadata?.avatar ||
+        (apiCourse as any).teacher?.user?.metadata?.avatarUrl ||
+        (apiCourse as any).teacher?.user?.metadata?.avatar_url ||
+        (apiCourse as any).teacher?.user?.metadata?.picture ||
+        (apiCourse as any).teacher?.user?.avatarUrl ||
+        '';
+
     // Build compatible course object for PlaylistSidebar and LessonTabs
     const course = {
         ...apiCourse,
         curriculum,
+        author: {
+            id: (apiCourse as any).teacher?.id || (apiCourse as any).createdBy || 'unknown',
+            name: instructorName || 'Faiera Instructor',
+            avatar: instructorAvatar,
+            role: 'Instructor',
+        },
     } as any;
 
     return (
