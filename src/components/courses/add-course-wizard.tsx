@@ -218,6 +218,8 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                                 attachments: [],
                             })),
                     }))
+                const sectionsToLoad = mappedSections.length > 0 ? mappedSections : (defaultCourseValues.sections as any)
+                // Reset scalar fields first (without sections to avoid stale field-array state)
                 form.reset({
                     ...defaultCourseValues,
                     title: c.titleAr || c.titleEn || '',
@@ -230,8 +232,12 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                     price: Number(c.price) || 0,
                     currency: c.currency || 'EGP',
                     thumbnail: c.thumbnailUrl || '',
-                    sections: mappedSections.length > 0 ? mappedSections : (defaultCourseValues.sections as any),
+                    sections: [],
                 } as CourseFormValues)
+                // Set sections in next tick so useFieldArray picks up the change reliably
+                setTimeout(() => {
+                    form.setValue('sections', sectionsToLoad, { shouldValidate: false, shouldDirty: false })
+                }, 0)
             }).catch(() => {
                 // fallback to whatever was passed via props
                 form.reset(course ? { ...defaultCourseValues, ...course } : defaultCourseValues)
