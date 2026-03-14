@@ -15,6 +15,41 @@ interface PageProps {
 
 export const dynamic = 'force-dynamic';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.faiera.com/api/v1';
+const API_ORIGIN = (() => {
+    try {
+        return new URL(API_BASE_URL).origin;
+    } catch {
+        return 'https://api.faiera.com';
+    }
+})();
+
+function getGeneratedAvatar(name: string): string {
+    const encoded = encodeURIComponent(name || 'Faiera Instructor');
+    return `https://ui-avatars.com/api/?name=${encoded}&background=10b981&color=ffffff&size=256&bold=true`;
+}
+
+function normalizeAvatarUrl(raw?: string): string | null {
+    if (!raw) return null;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    if (raw.startsWith('/')) return `${API_ORIGIN}${raw}`;
+    return null;
+}
+
+async function resolveInstructorAvatarUrl(rawAvatar: string | undefined, instructorName: string): Promise<string> {
+    const normalized = normalizeAvatarUrl(rawAvatar);
+    const fallback = getGeneratedAvatar(instructorName);
+
+    if (!normalized) return fallback;
+
+    try {
+        const res = await fetch(normalized, { method: 'HEAD', cache: 'no-store' });
+        return res.ok ? normalized : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
 export default async function CoursePage({ params }: PageProps) {
     const { slug } = await params;
 
@@ -164,6 +199,19 @@ export default async function CoursePage({ params }: PageProps) {
         notFound();
     }
 
+    const instructorName = (apiCourse as any).teacher?.user
+        ? `${(apiCourse as any).teacher.user.firstName} ${(apiCourse as any).teacher.user.lastName}`
+        : 'Faiera Instructor';
+
+    const rawAvatar =
+        (apiCourse as any).teacher?.user?.metadata?.avatar ||
+        (apiCourse as any).teacher?.user?.metadata?.avatarUrl ||
+        (apiCourse as any).teacher?.user?.metadata?.avatar_url ||
+        (apiCourse as any).teacher?.user?.metadata?.picture ||
+        (apiCourse as any).teacher?.user?.avatarUrl;
+
+    const resolvedAvatar = await resolveInstructorAvatarUrl(rawAvatar, instructorName);
+
     // Map API course to UI course
     const course: UICourse = {
         id: apiCourse.id,
@@ -174,10 +222,8 @@ export default async function CoursePage({ params }: PageProps) {
         videoTrailer: '',
         author: {
             id: (apiCourse as any).teacher?.id || (apiCourse as any).createdBy || 'unknown',
-            name: (apiCourse as any).teacher?.user
-                ? `${(apiCourse as any).teacher.user.firstName} ${(apiCourse as any).teacher.user.lastName}`
-                : 'Faiera Instructor',
-            avatar: (apiCourse as any).teacher?.user?.metadata?.avatar || '/avatars/01.png',
+            name: instructorName,
+            avatar: resolvedAvatar,
             role: 'Instructor'
         },
         price: Number(apiCourse.price) || 0,
