@@ -8,6 +8,16 @@ import { notFound } from 'next/navigation';
 import { ChevronRight, Flag } from 'lucide-react';
 import Link from 'next/link';
 
+type LearnLesson = {
+    id: string;
+    title: string;
+    duration: string;
+    type: string;
+    isFree: boolean;
+    articleContent?: string;
+    assessmentId?: string;
+};
+
 interface PageProps {
     params: Promise<{ slug: string }>;
     searchParams: Promise<{ lessonId?: string }>;
@@ -39,15 +49,17 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
             duration: `${lesson.durationMinutes || 0} دقيقة`,
             type: (lesson.type as any) || 'video',
             isFree: lesson.isFree,
+            articleContent: (lesson as any).contentAr || (lesson as any).contentEn || '',
+            assessmentId: (lesson as any).assessmentId,
         })),
     }));
 
     // Find the requested lesson or default to the first one
-    let activeLesson = curriculum[0]?.lessons?.[0];
+    let activeLesson: LearnLesson | undefined = curriculum[0]?.lessons?.[0] as LearnLesson | undefined;
 
     if (lessonId) {
         for (const chapter of curriculum) {
-            const found = chapter.lessons.find((l: any) => l.id === lessonId);
+            const found = chapter.lessons.find((l: any) => l.id === lessonId) as LearnLesson | undefined;
             if (found) {
                 activeLesson = found;
                 break;
@@ -61,6 +73,7 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
 
     const courseTitle = apiCourse.titleAr || apiCourse.titleEn;
     const isQuiz = activeLesson.type === 'quiz';
+    const isArticle = activeLesson.type === 'article';
 
     const instructorName = (apiCourse as any).teacher?.user
         ? `${(apiCourse as any).teacher.user.firstName || ''} ${(apiCourse as any).teacher.user.lastName || ''}`.trim()
@@ -106,9 +119,26 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
                     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 md:space-y-8 h-full">
                         {isQuiz ? (
                             <QuizPlayer
-                                assessmentId={activeLesson.id}
+                                assessmentId={activeLesson.assessmentId || activeLesson.id}
                                 title={activeLesson.title}
                             />
+                        ) : isArticle ? (
+                            <>
+                                <div className="space-y-4 rounded-2xl border border-border bg-card p-5 md:p-8">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <h2 className="text-lg md:text-2xl font-bold text-foreground font-cairo leading-8">{activeLesson.title}</h2>
+                                        <button className="inline-flex items-center gap-2 text-sm text-primary hover:underline self-start sm:self-auto">
+                                            <Flag className="w-4 h-4" />
+                                            الإبلاغ عن مشكلة
+                                        </button>
+                                    </div>
+                                    <div className="prose prose-sm md:prose-base max-w-none text-foreground/90 leading-8 whitespace-pre-wrap font-cairo">
+                                        {activeLesson.articleContent || 'لا يوجد محتوى مكتوب متاح لهذا المقال حالياً.'}
+                                    </div>
+                                </div>
+
+                                <LessonTabs lesson={activeLesson as any} course={course} />
+                            </>
                         ) : (
                             <>
                                 {/* Video Player Box */}
@@ -125,7 +155,7 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
                                 </div>
 
                                 {/* Tabs */}
-                                <LessonTabs lesson={activeLesson} course={course} />
+                                <LessonTabs lesson={activeLesson as any} course={course} />
                             </>
                         )}
                     </div>
