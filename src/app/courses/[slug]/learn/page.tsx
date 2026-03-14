@@ -1,4 +1,5 @@
 import { getCourseById, Course, Module as CourseModule, Lesson } from '@/lib/api';
+import { getCourseProgress } from '@/lib/progress';
 import { VideoPlayer } from '@/components/player/video-player';
 import { QuizPlayer } from '@/components/player/quiz-player';
 import { PlaylistSidebar } from '@/components/player/playlist-sidebar';
@@ -63,11 +64,17 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
     const { slug } = await params;
     const { lessonId } = await searchParams;
 
-    // Fetch course from API instead of static mock data
+
+    // Fetch course and progress from API
     let apiCourse: Course;
+    let progressData: { totalLessons: number; completedLessons: number; overallProgress: number } = { totalLessons: 0, completedLessons: 0, overallProgress: 0 };
     try {
-        const res = await getCourseById(slug);
-        apiCourse = res.data;
+        const [courseRes, progressRes] = await Promise.all([
+            getCourseById(slug),
+            getCourseProgress(slug)
+        ]);
+        apiCourse = courseRes.data;
+        progressData = progressRes.data || progressData;
     } catch (error) {
         notFound();
         return;
@@ -209,7 +216,13 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
 
                 {/* Sidebar (Desktop) */}
                 <aside className="w-[350px] hidden lg:block border-r border-border shrink-0">
-                    <PlaylistSidebar course={course} currentLessonId={activeLesson.id} />
+                    <PlaylistSidebar
+                        course={course}
+                        currentLessonId={activeLesson.id}
+                        progress={Math.round(progressData.overallProgress)}
+                        completedLessons={progressData.completedLessons}
+                        totalLessons={progressData.totalLessons}
+                    />
                 </aside>
             </div>
         </main>

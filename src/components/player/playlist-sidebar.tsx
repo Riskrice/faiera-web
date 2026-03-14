@@ -9,9 +9,12 @@ import { CheckCircle2, PlayCircle, Lock, Circle } from 'lucide-react';
 interface PlaylistSidebarProps {
     course: Course;
     currentLessonId: string;
+    progress?: number;
+    completedLessons?: number;
+    totalLessons?: number;
 }
 
-export function PlaylistSidebar({ course, currentLessonId }: PlaylistSidebarProps) {
+export function PlaylistSidebar({ course, currentLessonId, progress = 0, completedLessons = 0, totalLessons = 0 }: PlaylistSidebarProps) {
     const chapters = course.curriculum || [];
 
     // Find chapter containing current lesson to open it by default
@@ -25,12 +28,20 @@ export function PlaylistSidebar({ course, currentLessonId }: PlaylistSidebarProp
                     <span>{course.lessonsCount} درس</span>
                     <span className="text-emerald-400 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        12% مكتمل
+                        {progress}% مكتمل
                     </span>
                 </div>
                 {/* Progress Bar */}
                 <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
-                    <div className="w-[12%] h-full bg-emerald-400 rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                    <div
+                        className="h-full bg-emerald-400 rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)] transition-all duration-700"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+                <div className="flex justify-end text-xs text-muted-foreground mt-1">
+                    <span>
+                        {completedLessons}/{totalLessons} مكتمل
+                    </span>
                 </div>
             </div>
 
