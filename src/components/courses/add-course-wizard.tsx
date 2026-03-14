@@ -192,6 +192,12 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
         mode: "onChange",
     })
 
+    // Field Arrays for Curriculum
+    const { fields: sections, append: appendSection, remove: removeSection, replace: replaceSections } = useFieldArray({
+        control: form.control,
+        name: "sections",
+    })
+
     // Reset form when dialog opens — if editing, fetch full course data from API
     useEffect(() => {
         if (!open) return
@@ -234,24 +240,16 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                     thumbnail: c.thumbnailUrl || '',
                     sections: [],
                 } as CourseFormValues)
-                // Set sections in next tick so useFieldArray picks up the change reliably
-                setTimeout(() => {
-                    form.setValue('sections', sectionsToLoad, { shouldValidate: false, shouldDirty: false })
-                }, 0)
+                replaceSections(sectionsToLoad as any)
             }).catch(() => {
                 // fallback to whatever was passed via props
                 form.reset(course ? { ...defaultCourseValues, ...course } : defaultCourseValues)
             })
         } else {
             form.reset(defaultCourseValues)
+            replaceSections((defaultCourseValues.sections as any) || [])
         }
-    }, [open, courseId])
-
-    // Field Arrays for Curriculum
-    const { fields: sections, append: appendSection, remove: removeSection } = useFieldArray({
-        control: form.control,
-        name: "sections",
-    })
+    }, [open, courseId, replaceSections])
 
     const nextStep = async () => {
         let fieldsToValidate: (keyof CourseFormValues)[] = []
