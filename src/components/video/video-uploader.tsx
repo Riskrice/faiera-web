@@ -4,7 +4,7 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Upload, X, CheckCircle, FileVideo, AlertCircle, XCircle } from "lucide-react";
+import { Upload, X, CheckCircle, FileVideo, AlertCircle, XCircle, RotateCcw, Play } from "lucide-react";
 import { useUpload } from "@/contexts/upload-context";
 
 interface VideoUploaderProps {
@@ -13,15 +13,29 @@ interface VideoUploaderProps {
     className?: string;
 }
 
+/** Format bytes to human-readable size */
+function formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
+}
+
 export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUploaderProps) {
-    const { uploads, startUpload, cancelUpload, removeUpload } = useUpload();
+    const { uploads, startUpload, resumeUpload, cancelUpload, removeUpload } = useUpload();
 
     // Get state for this specific lesson upload
     const uploadStateObj = uploads[lessonId] || { status: 'idle', progress: 0 };
     const uploadState = uploadStateObj.status;
     const progress = uploadStateObj.progress;
     const errorMessage = uploadStateObj.errorMessage;
+    const canResume = uploadStateObj.canResume;
+    const bytesUploaded = uploadStateObj.bytesUploaded || 0;
+    const bytesTotal = uploadStateObj.bytesTotal || 0;
     const file = uploadStateObj.fileName ? { name: uploadStateObj.fileName } as any : null;
+
+    const MAX_FILE_SIZE = 11 * 1024 * 1024 * 1024; // 11GB
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -30,8 +44,8 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
                 toast.error("يرجى اختيار ملف فيديو صحيح");
                 return;
             }
-            if (selectedFile.size > 2 * 1024 * 1024 * 1024) {
-                toast.error("حجم الملف يتجاوز الحد المسموح به (2GB)");
+            if (selectedFile.size > MAX_FILE_SIZE) {
+                toast.error("حجم الملف يتجاوز الحد المسموح به (11GB)");
                 return;
             }
             startUpload(lessonId, selectedFile, onUploadComplete).catch(() => { });
@@ -41,6 +55,11 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
     const handleCancel = () => {
         cancelUpload(lessonId);
         toast.info("تم إلغاء الرفع");
+    };
+
+    const handleResume = () => {
+        resumeUpload(lessonId);
+        toast.info("جاري استئناف الرفع...");
     };
 
     const clearFile = () => {
@@ -78,7 +97,7 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
                         </Button>
                     </label>
                     <p className="text-xs text-muted-foreground">
-                        MP4, MOV, AVI — حتى 2GB
+                        MP4, MOV, AVI — حتى 11GB (رفع مجزأ قابل للاستئناف)
                     </p>
                 </div>
             ) : (
@@ -91,7 +110,11 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
                             <div className="space-y-0.5 overflow-hidden">
                                 <p className="font-medium text-sm truncate">{file.name}</p>
                                 <p className="text-xs text-muted-foreground whitespace-nowrap">
-                                    {uploadState === "uploading" ? `جاري الرفع... ${progress}%` : uploadState === "success" ? "تم الرفع بنجاح ✓" : ""}
+                                    {uploadState === "uploading"
+                                        ? `جاري الرفع... ${formatFileSize(bytesUploaded)} / ${formatFileSize(bytesTotal)}`
+                                        : uploadState === "success"
+                                            ? "تم الرفع بنجاح ✓"
+                                            : ""}
                                 </p>
                             </div>
                         </div>
@@ -120,7 +143,7 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
                     {uploadState === "uploading" && (
                         <div className="space-y-2">
                             <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>جاري الرفع إلى Bunny.net...</span>
+                                <span>جاري الرفع إلى Bunny.net (رفع مجزأ)...</span>
                                 <span className="font-bold tabular-nums">{progress}%</span>
                             </div>
                             <Progress value={progress} className="h-2" />
@@ -141,9 +164,19 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
                         </div>
                     )}
 
-                    {uploadState === "error" && file && (
-                        <div className="flex justify-end pt-2">
-                            <Button onClick={() => startUpload(lessonId, file, onUploadComplete)} variant="secondary">
+                    {uploadState === "error" && (
+                        <div className="flex justify-end gap-2 pt-2">
+                            {canResume && (
+                                <Button onClick={handleResume} variant="default" className="gap-1.5">
+                                    <Play className="w-4 h-4" />
+                                    استئناف الرفع
+                                </Button>
+                            )}
+                            <Button onClick={() => {
+                                // Re-select file for full retry
+                                removeUpload(lessonId);
+                            }} variant="secondary" className="gap-1.5">
+                                <RotateCcw className="w-4 h-4" />
                                 إعادة المحاولة
                             </Button>
                         </div>
@@ -153,4 +186,3 @@ export function VideoUploader({ lessonId, onUploadComplete, className }: VideoUp
         </div>
     );
 }
-
