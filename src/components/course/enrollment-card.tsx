@@ -303,7 +303,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
                     </DialogHeader>
-                    <div className="w-full bg-black relative aspect-video">
+                    <div className="w-full relative aspect-video bg-black shadow-2xl">
                         {showPreview && previewLessonId && (
                             <SecurePlayer
                                 lessonId={previewLessonId}

@@ -140,19 +140,20 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
     const isDirect = isDirectVideo(embedUrl);
 
     return (
-        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-lg">
+        <div className="relative w-full h-full bg-black overflow-hidden flex items-center justify-center">
             {isDirect ? (
                 <video
                     src={embedUrl}
                     controls
                     autoPlay={autoPlay}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain z-10"
                 />
             ) : (
                 <iframe
                     src={embedUrl}
                     loading="lazy"
-                    className="absolute top-0 left-0 w-full h-full border-0"
+                    className="w-full h-full border-0 z-10"
+                    style={{ aspectRatio: '16/9' }}
                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                     allowFullScreen
                 />
