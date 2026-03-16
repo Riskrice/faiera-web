@@ -290,7 +290,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
 
             {/* Preview Dialog */}
             <Dialog open={showPreview} onOpenChange={setShowPreview}>
-                <DialogContent className="sm:max-w-5xl bg-black border-white/10 p-0 overflow-hidden shadow-2xl">
+                <DialogContent className="sm:max-w-4xl bg-black border-white/10 p-0 gap-0 overflow-hidden shadow-2xl flex flex-col">
                     <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent flex flex-row items-center justify-between">
                         <DialogTitle className="text-white text-lg font-cairo pointer-events-none">
                             مقدمة الكورس
@@ -303,7 +303,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
                     </DialogHeader>
-                    <div className="w-full aspect-video bg-black relative">
+                    <div className="w-full relative aspect-video bg-black overflow-hidden">
                         {showPreview && previewLessonId && (
                             <SecurePlayer
                                 lessonId={previewLessonId}
