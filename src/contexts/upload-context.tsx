@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode, useRef, useCallback } from 'react';
 import * as tus from 'tus-js-client';
 import api from '@/lib/api';
+import { useAuth } from '@/contexts/auth-context';
 
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
@@ -43,6 +44,7 @@ interface TusUploadRef {
 export function UploadProvider({ children }: { children: ReactNode }) {
     const [uploads, setUploads] = useState<Record<string, UploadState>>({});
     const tusRefs = useRef<Record<string, TusUploadRef>>({});
+    const { accessToken } = useAuth();
 
     const detectVideoDuration = (videoFile: File): Promise<number> => {
         return new Promise((resolve) => {
@@ -80,8 +82,22 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     ): tus.Upload => {
         const upload = new tus.Upload(file, {
             endpoint: 'https://video.bunnycdn.com/tusupload',
-            retryDelays: [0, 3000, 5000, 10000, 20000, 60000, 60000],
-            chunkSize: 5 * 1024 * 1024, // 5MB chunks — optimal for large files
+            // Longer retry delays — Bunny.net needs 2-5 min to release locks on large files
+            retryDelays: [0, 5000, 10000, 30000, 60000, 90000, 120000],
+            chunkSize: 20 * 1024 * 1024, // 20MB chunks — reduces lock contention on large files
+            storeFingerprintForResuming: true,
+            removeFingerprintOnSuccess: true,
+            fingerprint: async (inputFile) => {
+                return [
+                    'faiera',
+                    lessonId,
+                    videoId,
+                    inputFile.name,
+                    inputFile.type,
+                    inputFile.size,
+                    inputFile.lastModified,
+                ].join('-');
+            },
             headers: {
                 AuthorizationSignature: signature,
                 AuthorizationExpire: expirationTime.toString(),
@@ -95,17 +111,36 @@ export function UploadProvider({ children }: { children: ReactNode }) {
             onError: (error) => {
                 console.error('TUS upload error:', error);
 
-                // Check if it was a cancel (abort)
-                const errorMsg = error?.message || 'حدث خطأ أثناء الرفع';
-                const isCancelled = errorMsg.includes('abort') || errorMsg.includes('cancel');
+                const detailedError = error as tus.DetailedError;
+                const status = detailedError.originalResponse?.getStatus();
+                const rawErrorMsg = error?.message || 'حدث خطأ أثناء الرفع';
+                const isLocked = status === 423 || /locked/i.test(rawErrorMsg);
+                const isCancelled = rawErrorMsg.includes('abort') || rawErrorMsg.includes('cancel');
 
-                if (!isCancelled) {
+                if (isCancelled) return;
+
+                if (isLocked) {
+                    // Auto-resume after 30s for 423 Locked — server needs time to process
+                    console.log(`[TUS] 423 Locked for ${lessonId}, auto-resuming in 30s...`);
                     setUploadState(lessonId, {
-                        status: 'error',
-                        errorMessage: errorMsg,
-                        canResume: true, // TUS uploads can always be resumed
+                        status: 'uploading',
+                        errorMessage: undefined,
                     });
+                    setTimeout(() => {
+                        const ref = tusRefs.current[lessonId];
+                        if (ref) {
+                            console.log(`[TUS] Auto-resuming upload for ${lessonId}`);
+                            ref.upload.start();
+                        }
+                    }, 30000);
+                    return;
                 }
+
+                setUploadState(lessonId, {
+                    status: 'error',
+                    errorMessage: rawErrorMsg,
+                    canResume: true,
+                });
             },
             onProgress: (bytesUploaded, bytesTotal) => {
                 const percentage = Math.round((bytesUploaded / bytesTotal) * 100);
@@ -131,11 +166,16 @@ export function UploadProvider({ children }: { children: ReactNode }) {
             },
             onShouldRetry: (error, retryAttempt, _options) => {
                 const status = error.originalResponse?.getStatus();
-                // Retry on network errors or 5xx server errors
-                if (status && status >= 400 && status < 500) {
-                    return false; // Don't retry client errors
+                const message = (error?.message || '').toLowerCase();
+                if (status === 423 || message.includes('locked')) {
+                    // Allow many retries for lock errors — Bunny needs time
+                    return retryAttempt < 10;
                 }
-                console.log(`Retrying upload (attempt ${retryAttempt})...`);
+                // Don't retry client errors (4xx except 423)
+                if (status && status >= 400 && status < 500) {
+                    return false;
+                }
+                console.log(`[TUS] Retrying upload (attempt ${retryAttempt})...`);
                 return true; // Retry on network errors and 5xx
             },
         });
@@ -163,7 +203,11 @@ export function UploadProvider({ children }: { children: ReactNode }) {
             const durationSeconds = await detectVideoDuration(file);
 
             // 2. Get TUS upload credentials from backend
-            const responseData = await api.post<any>('/content/lessons/upload-url', { title: file.name });
+            const responseData = await api.post<any>(
+                '/content/lessons/upload-url',
+                { title: file.name },
+                { token: accessToken || undefined },
+            );
 
             if (!responseData.success || !responseData.data) {
                 throw new Error('فشل في الحصول على بيانات الرفع');
@@ -187,13 +231,10 @@ export function UploadProvider({ children }: { children: ReactNode }) {
                 durationSeconds,
             };
 
-            // 4. Check for previous uploads and resume if available
-            const previousUploads = await upload.findPreviousUploads();
-            if (previousUploads.length) {
-                upload.resumeFromPreviousUpload(previousUploads[0]);
-            }
-
-            // 5. Start the upload
+            // 4. Start the upload for the current Bunny video object.
+            // We do not reuse persisted uploads from previous attempts because the
+            // backend creates a new video ID each time, and resuming an older upload
+            // can point to a locked or unrelated Bunny upload URL.
             upload.start();
         } catch (error: any) {
             console.error('Upload initialization error:', error);

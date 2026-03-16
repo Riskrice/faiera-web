@@ -36,6 +36,7 @@ import { Switch } from "@/components/ui/switch"
 import { QuestionPicker } from "@/components/questions/question-picker"
 import { QuestionFormValues } from "@/lib/schemas/question"
 import { VideoUploader } from "@/components/video/video-uploader"
+import { useAuth } from "@/contexts/auth-context"
 
 
 interface LessonEditorProps {
@@ -54,6 +55,7 @@ export function LessonEditor({
     lessonTitle
 }: LessonEditorProps) {
     const { register, watch, setValue, control } = useFormContext()
+    const { accessToken } = useAuth()
     const type = watch(`sections.${sectionIndex}.lessons.${lessonIndex}.type`)
     const attachments = watch(`sections.${sectionIndex}.lessons.${lessonIndex}.attachments`) || []
 
@@ -131,8 +133,13 @@ export function LessonEditor({
         if (!file) return
 
         try {
+            if (!accessToken) {
+                toast.error("يجب تسجيل الدخول لرفع المرفقات")
+                return
+            }
+
             setIsUploadingAttachment(true)
-            const response = await api.upload<{ url: string, data?: { url: string } }>('/upload', file)
+            const response = await api.upload<{ url: string, data?: { url: string } }>('/upload', file, accessToken)
             // Handle different response structures (direct DTO or wrapped)
             const url = response.url || response.data?.url
 

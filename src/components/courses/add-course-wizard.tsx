@@ -77,6 +77,9 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
     const [savedCourseId, setSavedCourseId] = useState<string | null>(null)
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'
+    const step1Fields: (keyof CourseFormValues)[] = ["title", "description", "subject", "grade", "term", "language", "teacherId"]
+    const step2Fields: (keyof CourseFormValues)[] = ["price", "currency", "thumbnail"]
+    const step3Fields: (keyof CourseFormValues)[] = ["sections"]
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -255,18 +258,51 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
         let fieldsToValidate: (keyof CourseFormValues)[] = []
 
         if (currentStep === 1) {
-            fieldsToValidate = ["title", "description", "subject", "grade", "term", "language"]
+            fieldsToValidate = step1Fields
         } else if (currentStep === 2) {
-            fieldsToValidate = ["price", "currency", "thumbnail"]
+            fieldsToValidate = step2Fields
         } else if (currentStep === 3 && !courseId) {
             // Skip sections validation when editing (sections managed separately in course detail)
-            fieldsToValidate = ["sections"]
+            fieldsToValidate = step3Fields
         }
 
         const isValid = await form.trigger(fieldsToValidate)
         if (isValid) {
             setCurrentStep((prev) => Math.min(prev + 1, steps.length))
         }
+    }
+
+    const goToFirstInvalidStep = async () => {
+        const step1Valid = await form.trigger(step1Fields)
+        if (!step1Valid) {
+            setCurrentStep(1)
+            toast.error("أكمل البيانات الأساسية المطلوبة قبل النشر")
+            return false
+        }
+
+        const step2Valid = await form.trigger(step2Fields)
+        if (!step2Valid) {
+            setCurrentStep(2)
+            toast.error("راجع بيانات التسعير والميديا قبل النشر")
+            return false
+        }
+
+        if (!courseId) {
+            const step3Valid = await form.trigger(step3Fields)
+            if (!step3Valid) {
+                setCurrentStep(3)
+                toast.error("أكمل المنهج الدراسي قبل النشر")
+                return false
+            }
+        }
+
+        return true
+    }
+
+    const handlePublish = async () => {
+        const isValid = await goToFirstInvalidStep()
+        if (!isValid) return
+        await form.handleSubmit(onSubmit)()
     }
 
     const prevStep = () => {
@@ -432,6 +468,7 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                                                                         <SelectItem value="biology">الأحياء</SelectItem>
                                                                         <SelectItem value="history">التاريخ</SelectItem>
                                                                         <SelectItem value="geography">الجغرافيا</SelectItem>
+                                                                        <SelectItem value="philosophy_logic">الفلسفة والمنطق</SelectItem>
                                                                     </SelectContent>
                                                                 </Select>
                                                                 <FormMessage />
@@ -705,7 +742,7 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                                     <ChevronLeft className="w-4 h-4 mr-2" />
                                 </Button>
                             ) : (
-                                <Button onClick={form.handleSubmit(onSubmit)} variant="emerald" className="px-8 min-w-[140px]">
+                                <Button onClick={handlePublish} disabled={isSubmitting} variant="emerald" className="px-8 min-w-[140px]">
                                     نشر الكورس
                                     <Check className="w-4 h-4 mr-2" />
                                 </Button>

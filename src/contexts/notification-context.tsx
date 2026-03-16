@@ -26,6 +26,26 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
+function getTokenExpiry(token: string) {
+    try {
+        const [, payload] = token.split(".")
+        if (!payload) return null
+
+        const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/")
+        const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, "=")
+        const parsedPayload = JSON.parse(atob(paddedPayload))
+
+        return typeof parsedPayload.exp === "number" ? parsedPayload.exp * 1000 : null
+    } catch {
+        return null
+    }
+}
+
+function isTokenExpiredOrNearExpiry(token: string, skewMs = 30000) {
+    const expiry = getTokenExpiry(token)
+    return expiry !== null && expiry <= Date.now() + skewMs
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
     const { accessToken, user } = useAuth()
     const [notifications, setNotifications] = useState<Notification[]>([])
@@ -103,12 +123,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             return
         }
 
+        if (isTokenExpiredOrNearExpiry(accessToken)) {
+            if (socketRef.current) {
+                socketRef.current.disconnect()
+                socketRef.current = null
+            }
+            setIsConnected(false)
+            return
+        }
+
         // Connect only if not already connected
         if (!socketRef.current) {
             const newSocket = io(`${socketUrl}/notifications`, {
                 auth: { token: accessToken },
-                transports: ['websocket'],
+                transports: ['websocket', 'polling'],
                 reconnection: true,
+                reconnectionAttempts: 5,
+                timeout: 10000,
             })
 
             newSocket.on('connect', () => {
@@ -119,6 +150,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             newSocket.on('disconnect', () => {
                 console.log('Notification socket disconnected')
                 setIsConnected(false)
+            })
+
+            newSocket.on('connect_error', (error) => {
+                console.warn('Notification socket connection failed:', error.message)
+                setIsConnected(false)
+
+                if (/jwt expired|invalid token|unauthorized/i.test(error.message)) {
+                    newSocket.io.opts.reconnection = false
+                    newSocket.disconnect()
+                    socketRef.current = null
+                }
             })
 
             // Handle real-time notifications

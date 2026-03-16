@@ -38,6 +38,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return err?.message || fallbackMessage;
     };
 
+    const getTokenExpiry = (token: string) => {
+        try {
+            const [, payload] = token.split('.');
+            if (!payload) return null;
+
+            const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+            const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+            const parsedPayload = JSON.parse(atob(paddedPayload));
+
+            return typeof parsedPayload.exp === 'number' ? parsedPayload.exp * 1000 : null;
+        } catch {
+            return null;
+        }
+    };
+
+    const isTokenExpiredOrNearExpiry = (token: string, skewMs: number = 30000) => {
+        const expiry = getTokenExpiry(token);
+        return expiry !== null && expiry <= Date.now() + skewMs;
+    };
+
+    const persistTokens = (tokens: AuthTokens, storage: Storage, maxAge: number) => {
+        setAccessToken(tokens.accessToken);
+        api.setToken(tokens.accessToken);
+        storage.setItem('faiera_backend_token', tokens.accessToken);
+
+        if (tokens.refreshToken) {
+            storage.setItem('faiera_refresh_token', tokens.refreshToken);
+        }
+
+        document.cookie = `faiera_session=${tokens.accessToken}; path=/; max-age=${maxAge}`;
+    };
+
+    const refreshSession = async (refreshToken: string, storage: Storage, maxAge: number) => {
+        const { refreshToken: refreshApi } = await import('@/lib/api');
+        const response = await refreshApi(refreshToken);
+        const newTokens = (response as any).data as AuthTokens | undefined;
+
+        if (!newTokens?.accessToken) {
+            throw new Error('Refresh failed');
+        }
+
+        console.log('Token refreshed successfully');
+        persistTokens(newTokens, storage, maxAge);
+        return newTokens.accessToken;
+    };
+
     const checkAuth = async () => {
         let token = null;
         try {
@@ -63,11 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             if (token) {
+                const storage = useLocalStorage ? localStorage : sessionStorage;
+                const maxAge = useLocalStorage ? 604800 : 86400;
+
+                if (refreshToken && isTokenExpiredOrNearExpiry(token)) {
+                    console.log('Access token expired before profile fetch, attempting refresh...');
+                    token = await refreshSession(refreshToken, storage, maxAge);
+                    refreshToken = storage.getItem('faiera_refresh_token');
+                }
+
                 api.setToken(token);
 
                 // Heal the cookie immediately if it's out of sync with localStorage/sessionStorage
                 if (typeof window !== 'undefined') {
-                    const maxAge = useLocalStorage ? 604800 : 86400;
                     document.cookie = `faiera_session=${token}; path=/; max-age=${maxAge}`;
                 }
 
@@ -80,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         setAccessToken(token);
 
                         // Update stored user
-                        const storage = useLocalStorage ? localStorage : sessionStorage;
                         storage.setItem('faiera_user', JSON.stringify(userData));
                     }
                 } catch (error: any) {
@@ -88,39 +141,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     if (error?.statusCode === 401 && refreshToken) {
                         console.log('Token expired, attempting refresh...');
                         try {
-                            // Using the default api instance to call refresh endpoint manually since import might be tricky with defaults
-                            // Note: We need a way to call refresh without the expired token causing issues, but refresh endpoint is usually public or uses body
-                            // Checking api.ts, refreshToken function uses api.post.
-                            const { refreshToken: refreshApi } = await import('@/lib/api');
-                            const response = await refreshApi(refreshToken);
+                            token = await refreshSession(refreshToken, storage, maxAge);
 
-                            const newTokens = (response as any).data;
-                            if (newTokens && newTokens.accessToken) {
-                                console.log('Token refreshed successfully');
-                                // Update state
-                                setAccessToken(newTokens.accessToken);
-                                api.setToken(newTokens.accessToken);
-
-                                // Update storage
-                                const storage = useLocalStorage ? localStorage : sessionStorage;
-                                storage.setItem('faiera_backend_token', newTokens.accessToken);
-                                if (newTokens.refreshToken) {
-                                    storage.setItem('faiera_refresh_token', newTokens.refreshToken);
-                                }
-
-                                // Sync new token into cookies so Server Components (Next.js SSR) use the fresh token
-                                const maxAge = useLocalStorage ? 604800 : 86400;
-                                document.cookie = `faiera_session=${newTokens.accessToken}; path=/; max-age=${maxAge}`;
-
-                                // Retry fetching profile
-                                const userResponse = await api.get<{ data: User }>('/auth/me');
-                                const userData = (userResponse as any).data;
-                                if (userData) {
-                                    setUser(userData);
-                                    storage.setItem('faiera_user', JSON.stringify(userData));
-                                }
-                            } else {
-                                throw new Error('Refresh failed');
+                            // Retry fetching profile
+                            const userResponse = await api.get<{ data: User }>('/auth/me');
+                            const userData = (userResponse as any).data;
+                            if (userData) {
+                                setUser(userData);
+                                storage.setItem('faiera_user', JSON.stringify(userData));
                             }
                         } catch (refreshError) {
                             console.error('Session refresh failed:', refreshError);

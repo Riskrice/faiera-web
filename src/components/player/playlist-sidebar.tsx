@@ -1,10 +1,13 @@
 'use client';
 
-import { Course, Chapter, Lesson } from '@/data/courses';
+import { useEffect, useState } from 'react';
+import { Course } from '@/data/courses';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { CheckCircle2, PlayCircle, Lock, Circle } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
+import api from '@/lib/api';
 
 interface PlaylistSidebarProps {
     course: Course;
@@ -14,33 +17,107 @@ interface PlaylistSidebarProps {
     totalLessons?: number;
 }
 
-export function PlaylistSidebar({ course, currentLessonId, progress = 0, completedLessons = 0, totalLessons = 0 }: PlaylistSidebarProps) {
+export function PlaylistSidebar({
+    course,
+    currentLessonId,
+    progress = 0,
+    completedLessons = 0,
+    totalLessons = 0,
+}: PlaylistSidebarProps) {
+    const { accessToken } = useAuth();
     const chapters = course.curriculum || [];
+    const lessonCount = course.lessonsCount || chapters.reduce((sum, chapter) => sum + chapter.lessons.length, 0);
+    const [displayProgress, setDisplayProgress] = useState(progress);
+    const [displayCompletedLessons, setDisplayCompletedLessons] = useState(completedLessons);
+    const [displayTotalLessons, setDisplayTotalLessons] = useState(totalLessons || lessonCount);
 
     // Find chapter containing current lesson to open it by default
-    const activeChapter = chapters.find(ch => ch.lessons.some(l => l.id === currentLessonId))?.id || chapters[0]?.id;
+    const activeChapter = chapters.find((chapter) => chapter.lessons.some((lesson) => lesson.id === currentLessonId))?.id || chapters[0]?.id;
+
+    useEffect(() => {
+        setDisplayProgress(progress);
+        setDisplayCompletedLessons(completedLessons);
+        setDisplayTotalLessons(totalLessons || lessonCount);
+    }, [progress, completedLessons, totalLessons, lessonCount]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const syncCourseProgress = async () => {
+            if (!accessToken || !course.id || !currentLessonId) {
+                if (!cancelled) {
+                    setDisplayTotalLessons((prev) => prev || lessonCount);
+                }
+                return;
+            }
+
+            try {
+                const visitStorageKey = `faiera_progress_lesson_${course.id}_${currentLessonId}`;
+                const shouldMarkVisited = typeof window === 'undefined' || !sessionStorage.getItem(visitStorageKey);
+
+                if (shouldMarkVisited) {
+                    await api.post('/progress/update', {
+                        contentType: 'lesson',
+                        contentId: currentLessonId,
+                        progressPercent: 100,
+                        metadata: {
+                            courseId: course.id,
+                        },
+                    }, {
+                        token: accessToken,
+                    });
+
+                    if (typeof window !== 'undefined') {
+                        sessionStorage.setItem(visitStorageKey, '1');
+                    }
+                }
+
+                const response = await api.get<{ data: { totalLessons: number; completedLessons: number; overallProgress: number } }>(
+                    `/progress/my/course/${course.id}`,
+                    { token: accessToken },
+                );
+
+                if (cancelled) return;
+
+                const progressData = (response as any).data || response;
+                setDisplayProgress(Math.round(progressData.overallProgress || 0));
+                setDisplayCompletedLessons(progressData.completedLessons || 0);
+                setDisplayTotalLessons(progressData.totalLessons || lessonCount);
+            } catch (error) {
+                if (!cancelled) {
+                    setDisplayTotalLessons((prev) => prev || lessonCount);
+                }
+                console.error('Failed to sync course progress in playlist sidebar:', error);
+            }
+        };
+
+        void syncCourseProgress();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [accessToken, course.id, currentLessonId, lessonCount]);
 
     return (
         <div className="bg-card border-l border-border h-full flex flex-col w-full">
             <div className="p-4 border-b border-border sticky top-0 bg-card z-10">
                 <h3 className="font-bold text-foreground font-cairo">محتوى الكورس</h3>
                 <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
-                    <span>{course.lessonsCount} درس</span>
+                    <span>{lessonCount} درس</span>
                     <span className="text-emerald-400 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        {progress}% مكتمل
+                        {displayProgress}% مكتمل
                     </span>
                 </div>
-                {/* Progress Bar */}
                 <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
                     <div
                         className="h-full bg-emerald-400 rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)] transition-all duration-700"
-                        style={{ width: `${progress}%` }}
+                        style={{ width: `${displayProgress}%` }}
                     />
                 </div>
                 <div className="flex justify-end text-xs text-muted-foreground mt-1">
                     <span>
-                        {completedLessons}/{totalLessons} مكتمل
+                        {displayCompletedLessons}/{displayTotalLessons} مكتمل
                     </span>
                 </div>
             </div>
@@ -51,23 +128,25 @@ export function PlaylistSidebar({ course, currentLessonId, progress = 0, complet
                         <AccordionItem key={chapter.id} value={chapter.id} className="border-none">
                             <AccordionTrigger className="px-3 py-2 bg-muted/30 data-[state=open]:bg-muted/50 rounded-lg hover:bg-muted/50 transition-colors text-sm font-bold text-foreground">
                                 <div className="flex-1 text-right truncate pl-2">{chapter.title}</div>
-                                <span className="text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 bg-background rounded-full border border-border">{chapter.lessons.length}</span>
+                                <span className="text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 bg-background rounded-full border border-border">
+                                    {chapter.lessons.length}
+                                </span>
                             </AccordionTrigger>
                             <AccordionContent className="pt-1 pb-2">
                                 <div className="space-y-1 mt-1">
                                     {chapter.lessons.map((lesson) => {
                                         const isActive = lesson.id === currentLessonId;
-                                        const isLocked = !lesson.isFree && !isActive && false; // Disable locking for testing
+                                        const isLocked = !lesson.isFree && !isActive && false;
 
                                         return (
                                             <Link
                                                 key={lesson.id}
                                                 href={`/courses/${course.id}/learn?lessonId=${lesson.id}`}
                                                 className={cn(
-                                                    "flex items-center gap-3 p-3 rounded-md transition-all cursor-pointer text-sm font-cairo border",
+                                                    'flex items-center gap-3 p-3 rounded-md transition-all cursor-pointer text-sm font-cairo border',
                                                     isActive
-                                                        ? "bg-primary/10 text-primary border-primary/20 shadow-sm"
-                                                        : "hover:bg-muted/50 text-muted-foreground border-transparent hover:text-foreground"
+                                                        ? 'bg-primary/10 text-primary border-primary/20 shadow-sm'
+                                                        : 'hover:bg-muted/50 text-muted-foreground border-transparent hover:text-foreground',
                                                 )}
                                             >
                                                 {isActive ? (
@@ -80,9 +159,7 @@ export function PlaylistSidebar({ course, currentLessonId, progress = 0, complet
                                                     <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500/50" />
                                                 )}
 
-                                                <div className="flex-1 truncate">
-                                                    {lesson.title}
-                                                </div>
+                                                <div className="flex-1 truncate">{lesson.title}</div>
 
                                                 <span className="text-[10px] opacity-50 font-mono">
                                                     {lesson.duration.replace(' دقيقة', 'm')}

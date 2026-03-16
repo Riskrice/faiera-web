@@ -5,7 +5,7 @@ import { QuizPlayer } from '@/components/player/quiz-player';
 import { PlaylistSidebar } from '@/components/player/playlist-sidebar';
 import { LessonTabs } from '@/components/player/lesson-tabs';
 import { MobilePlaylistDrawer } from '@/components/player/mobile-playlist-drawer';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { ChevronRight, Flag } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,20 +64,43 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
     const { slug } = await params;
     const { lessonId } = await searchParams;
 
+    const { headers: nextHeaders, cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    let token = cookieStore.get('faiera_session')?.value;
+
+    if (!token) {
+        const headersList = await nextHeaders();
+        const cookieHeader = headersList.get('cookie') || '';
+        const match = cookieHeader.match(/(?:^|;\s*)faiera_session=([^;]*)/);
+        if (match?.[1]) {
+            token = match[1];
+        }
+    }
+
+    if (!token) {
+        const redirectUrl = lessonId
+            ? `/courses/${slug}/learn?lessonId=${encodeURIComponent(lessonId)}`
+            : `/courses/${slug}/learn`;
+        redirect(`/login?redirect=${encodeURIComponent(redirectUrl)}`);
+    }
 
     // Fetch course and progress from API
     let apiCourse: Course;
     let progressData: { totalLessons: number; completedLessons: number; overallProgress: number } = { totalLessons: 0, completedLessons: 0, overallProgress: 0 };
     try {
-        const [courseRes, progressRes] = await Promise.all([
-            getCourseById(slug),
-            getCourseProgress(slug)
-        ]);
+        const courseRes = await getCourseById(slug, token);
         apiCourse = courseRes.data;
-        progressData = progressRes.data || progressData;
     } catch (error) {
         notFound();
         return;
+    }
+
+    try {
+        const progressRes = await getCourseProgress(slug, token);
+        progressData = progressRes.data || progressData;
+    } catch (error) {
+        // Progress is secondary; avoid converting auth/cache issues into a full 404 page.
+        console.warn('Failed to load course progress for learn page:', error);
     }
 
     if (!apiCourse) notFound();
