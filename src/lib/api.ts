@@ -2,6 +2,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.faiera.com/api/v
 
 interface RequestOptions extends RequestInit {
     token?: string;
+    // Internal flag to track if this a retry attempt following a 401 refresh
+    _isRetry?: boolean;
 }
 
 interface ApiError {
@@ -24,6 +26,7 @@ export class ApiRequestError extends Error {
 class ApiClient {
     private baseUrl: string;
     private token: string | null = null;
+    private refreshTokenPromise: Promise<string> | null = null;
 
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
@@ -50,6 +53,71 @@ class ApiClient {
         return null;
     }
 
+    private async handleTokenRefresh(): Promise<string> {
+        if (this.refreshTokenPromise) {
+            return this.refreshTokenPromise;
+        }
+
+        this.refreshTokenPromise = (async () => {
+            try {
+                if (typeof window === 'undefined') {
+                    throw new Error('Cannot refresh token outside of browser');
+                }
+
+                const refreshToken = localStorage.getItem('faiera_refresh_token') || sessionStorage.getItem('faiera_refresh_token');
+                if (!refreshToken) {
+                    throw new Error('No refresh token available');
+                }
+
+                const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Refresh token invalid or expired');
+                }
+
+                const result = await response.json();
+                const newTokens = result.data as AuthTokens;
+
+                if (!newTokens?.accessToken) {
+                    throw new Error('Invalid refresh response');
+                }
+
+                // Determine which storage to use based on where the old token was
+                const storage = localStorage.getItem('faiera_backend_token') ? localStorage : sessionStorage;
+                const maxAge = storage === localStorage ? 604800 : 86400;
+
+                this.setToken(newTokens.accessToken);
+                storage.setItem('faiera_backend_token', newTokens.accessToken);
+                
+                if (newTokens.refreshToken) {
+                    storage.setItem('faiera_refresh_token', newTokens.refreshToken);
+                }
+
+                document.cookie = `faiera_session=${newTokens.accessToken}; path=/; max-age=${maxAge}`;
+                return newTokens.accessToken;
+            } catch (error) {
+                // If refresh fails, clear everything to force a clean logout
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('faiera_backend_token');
+                    localStorage.removeItem('faiera_refresh_token');
+                    sessionStorage.removeItem('faiera_backend_token');
+                    sessionStorage.removeItem('faiera_refresh_token');
+                    document.cookie = 'faiera_session=; path=/; max-age=0';
+                    this.setToken(null);
+                }
+                throw error;
+            } finally {
+                this.refreshTokenPromise = null;
+            }
+        })();
+
+        return this.refreshTokenPromise;
+    }
+
     private async request<T>(
         endpoint: string,
         options: RequestOptions = {}
@@ -66,10 +134,25 @@ class ApiClient {
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
-        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        let response = await fetch(`${this.baseUrl}${endpoint}`, {
             ...fetchOptions,
             headers,
         });
+
+        if (response.status === 401 && typeof window !== 'undefined' && !options?._isRetry) {
+            try {
+                const newToken = await this.handleTokenRefresh();
+                // Retry with new token
+                headers['Authorization'] = `Bearer ${newToken}`;
+                response = await fetch(`${this.baseUrl}${endpoint}`, {
+                    ...fetchOptions,
+                    headers,
+                });
+            } catch (refreshError) {
+                // Ignore refresh error here and let the original 401 be processed
+                console.warn('Auto-refresh failed during request:', refreshError);
+            }
+        }
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({
@@ -129,11 +212,26 @@ class ApiClient {
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
-        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        let response = await fetch(`${this.baseUrl}${endpoint}`, {
             method: 'POST',
             headers,
             body: formData,
         });
+
+        if (response.status === 401 && typeof window !== 'undefined' && !options?._isRetry) {
+            try {
+                const newToken = await this.handleTokenRefresh();
+                const headersInit = headers as Record<string, string>;
+                headersInit['Authorization'] = `Bearer ${newToken}`;
+                response = await fetch(`${this.baseUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: headersInit,
+                    body: formData,
+                });
+            } catch (refreshError) {
+                console.warn('Auto-refresh failed during uploadImage:', refreshError);
+            }
+        }
 
         if (!response.ok) {
             let errorMessage = 'Upload failed';
@@ -160,11 +258,26 @@ class ApiClient {
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
-        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        let response = await fetch(`${this.baseUrl}${endpoint}`, {
             method: 'POST',
             headers,
             body: formData,
         });
+
+        if (response.status === 401 && typeof window !== 'undefined') {
+            try {
+                const newToken = await this.handleTokenRefresh();
+                const headersInit = headers as Record<string, string>;
+                headersInit['Authorization'] = `Bearer ${newToken}`;
+                response = await fetch(`${this.baseUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: headersInit,
+                    body: formData,
+                });
+            } catch (refreshError) {
+                console.warn('Auto-refresh failed during upload:', refreshError);
+            }
+        }
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({
