@@ -130,11 +130,15 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
     }
 
     return (
-        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-lg">
+        <div 
+            className="relative w-full rounded-lg overflow-hidden bg-black shadow-lg"
+            style={{ paddingTop: '56.25%' }} /* 16:9 Aspect Ratio */
+        >
             <iframe
                 src={embedUrl}
                 loading="lazy"
                 className="absolute top-0 left-0 w-full h-full border-0"
+                style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
                 allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                 allowFullScreen
             />
