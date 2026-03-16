@@ -20,6 +20,10 @@ function isMissingVideoError(status?: number, message?: string) {
     return /video resource not found|not found for this lesson/i.test(message || "");
 }
 
+const isDirectVideo = (url: string) => {
+    return /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
+};
+
 export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) {
     const [embedUrl, setEmbedUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -71,14 +75,18 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
 
                 if (mounted) {
                     // Append autoplay param if requested
-                    const url = new URL(videoUrl);
-                    if (autoPlay) {
-                        url.searchParams.set("autoplay", "true");
+                    try {
+                        const url = new URL(videoUrl);
+                        if (autoPlay) {
+                            url.searchParams.set("autoplay", "true");
+                        }
+                        // Ensure it's not muted by default unless necessary, though browsers block unmuted autoplay often
+                        url.searchParams.set("muted", "false");
+                        setEmbedUrl(url.toString());
+                    } catch (e) {
+                        // If not a valid URL (rare), just set as is
+                        setEmbedUrl(videoUrl);
                     }
-                    // Ensure it's not muted by default unless necessary, though browsers block unmuted autoplay often
-                    url.searchParams.set("muted", "false");
-
-                    setEmbedUrl(url.toString());
                 }
             } catch (err) {
                 if (mounted) {
@@ -129,19 +137,26 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
         return null;
     }
 
+    const isDirect = isDirectVideo(embedUrl);
+
     return (
-        <div 
-            className="relative w-full rounded-lg overflow-hidden bg-black shadow-lg"
-            style={{ paddingTop: '56.25%' }} /* 16:9 Aspect Ratio */
-        >
-            <iframe
-                src={embedUrl}
-                loading="lazy"
-                className="absolute top-0 left-0 w-full h-full border-0"
-                style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                allowFullScreen
-            />
+        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-lg">
+            {isDirect ? (
+                <video
+                    src={embedUrl}
+                    controls
+                    autoPlay={autoPlay}
+                    className="w-full h-full object-contain"
+                />
+            ) : (
+                <iframe
+                    src={embedUrl}
+                    loading="lazy"
+                    className="absolute top-0 left-0 w-full h-full border-0"
+                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                    allowFullScreen
+                />
+            )}
         </div>
     );
 }
