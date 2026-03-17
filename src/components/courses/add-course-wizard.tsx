@@ -85,7 +85,7 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
         const fetchInitialData = async () => {
             try {
                 // Fetch programs
-                const programsData = await api.get<any>('/content/programs');
+                const programsData = await api.get<any>('/content/programs/all');
                 if (programsData.data) {
                     setPrograms(programsData.data);
                 }
@@ -121,69 +121,56 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
         setIsSubmitting(true);
 
         try {
+            console.log("Submitting course data:", data);
             const isEditing = !!courseId;
+            // ... (rest of payload mapping)
+
+            const payload = {
+                titleAr: data.title,
+                titleEn: data.title,
+                descriptionAr: data.description,
+                descriptionEn: data.description,
+                subject: data.subject,
+                grade: data.grade,
+                term: data.term,
+                teacherId: data.teacherId,
+                thumbnailUrl: data.thumbnail,
+                price: Number(data.price) || 0,
+                currency: data.currency || 'EGP',
+                sections: data.sections.map(section => ({
+                    id: (section as any).id,
+                    titleAr: section.title,
+                    titleEn: section.title,
+                    lessons: section.lessons.map(lesson => ({
+                        id: (lesson as any).id,
+                        titleAr: lesson.title,
+                        titleEn: lesson.title,
+                        type: lesson.type,
+                        durationMinutes: lesson.duration ? Math.floor((lesson.duration as number) / 60) : 0,
+                        isFree: lesson.isFree,
+                        videoId: lesson.videoUrl,
+                        videoUrl: lesson.videoUrl,
+                        contentAr: lesson.articleContent,
+                        contentEn: lesson.articleContent,
+                    }))
+                }))
+            };
 
             if (isEditing) {
-                // Edit: only send basic fields (UpdateCourseDto)
-                const updatePayload = {
-                    titleAr: data.title,
-                    titleEn: data.title,
-                    descriptionAr: data.description,
-                    descriptionEn: data.description,
-                    subject: data.subject,
-                    grade: data.grade,
-                    term: data.term,
-                    teacherId: data.teacherId,
-                    thumbnailUrl: data.thumbnail,
-                    price: data.price || 0,
-                    currency: data.currency || 'EGP',
-                };
-
-                await api.put<any>(`/content/courses/${courseId}`, updatePayload);
+                await api.put<any>(`/content/courses/${courseId}`, payload);
                 setSavedCourseId(courseId);
-                setIsSuccess(true);
                 toast.success("تم تحديث الكورس بنجاح!");
             } else {
-                // Create: send full payload including sections
-                const payload = {
-                    titleAr: data.title,
-                    titleEn: data.title,
-                    descriptionAr: data.description,
-                    descriptionEn: data.description,
-                    subject: data.subject,
-                    grade: data.grade,
-                    term: data.term,
-                    teacherId: data.teacherId,
-                    thumbnailUrl: data.thumbnail,
-                    price: data.price || 0,
-                    currency: data.currency || 'EGP',
-                    sections: data.sections.map(section => ({
-                        titleAr: section.title,
-                        titleEn: section.title,
-                        lessons: section.lessons.map(lesson => ({
-                            titleAr: lesson.title,
-                            titleEn: lesson.title,
-                            type: lesson.type,
-                            durationMinutes: lesson.duration ? Math.floor((lesson.duration as number) / 60) : 0,
-                            isFree: lesson.isFree,
-                            videoId: lesson.videoUrl,
-                            videoUrl: lesson.videoUrl,
-                            contentAr: lesson.articleContent,
-                            contentEn: lesson.articleContent,
-                        }))
-                    }))
-                };
-
                 const result = await api.post<any>('/content/courses', payload);
                 setSavedCourseId(result.data?.id || null);
-                setIsSuccess(true);
                 toast.success("تم إنشاء الكورس بنجاح!");
             }
+            setIsSuccess(true);
 
         } catch (error: any) {
             console.error("Submission failed:", error);
-            const msg = error?.response?.message || error?.message || "فشل في إنشاء الكورس";
-            toast.error("فشل في إنشاء الكورس: " + msg);
+            const msg = error?.response?.message || error?.message || "فشل في حفظ الكورس";
+            toast.error("فشل في حفظ الكورس: " + msg);
         } finally {
             setIsSubmitting(false);
         }
@@ -222,9 +209,9 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                                 type: l.type || 'video',
                                 isFree: l.isFree || false,
                                 duration: l.durationMinutes || 0,
-                                videoUrl: '',
+                                videoUrl: l.videoUrl || (l.video?.bunnyVideoId ? `bunny://${l.video.bunnyVideoId}` : ''),
                                 articleContent: l.contentAr || l.contentEn || '',
-                                attachments: [],
+                                attachments: l.attachments || [],
                             })),
                     }))
                 const sectionsToLoad = mappedSections.length > 0 ? mappedSections : (defaultCourseValues.sections as any)
@@ -302,7 +289,24 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
     const handlePublish = async () => {
         const isValid = await goToFirstInvalidStep()
         if (!isValid) return
-        await form.handleSubmit(onSubmit)()
+        
+        await form.handleSubmit(
+            (data) => onSubmit(data),
+            (errors) => {
+                console.error("Form validation errors:", errors);
+                toast.error("يرجى تصحيح الأخطاء في البيانات قبل النشر");
+                
+                // Optional: Try to find which step has an error
+                if (errors.sections) {
+                    setCurrentStep(3);
+                    toast.error("هناك أخطاء في قسم المنهج الدراسي");
+                } else if (errors.price || errors.thumbnail) {
+                    setCurrentStep(2);
+                } else {
+                    setCurrentStep(1);
+                }
+            }
+        )()
     }
 
     const prevStep = () => {
@@ -743,8 +747,17 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                                 </Button>
                             ) : (
                                 <Button onClick={handlePublish} disabled={isSubmitting} variant="emerald" className="px-8 min-w-[140px]">
-                                    نشر الكورس
-                                    <Check className="w-4 h-4 mr-2" />
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            جاري النشر...
+                                        </>
+                                    ) : (
+                                        <>
+                                            نشر الكورس
+                                            <Check className="w-4 h-4 mr-2" />
+                                        </>
+                                    )}
                                 </Button>
                             )}
                         </div>
