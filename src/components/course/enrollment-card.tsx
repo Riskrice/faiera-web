@@ -290,7 +290,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
 
             {/* Preview Dialog */}
             <Dialog open={showPreview} onOpenChange={setShowPreview}>
-                <DialogContent className="sm:max-w-5xl bg-black border-white/10 p-0 overflow-hidden shadow-2xl !block !border-none !ring-0 !gap-0">
+                <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-[1280px] bg-black border-white/10 p-0 overflow-hidden shadow-2xl !block !border-none !ring-0 !gap-0">
                     <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent flex flex-row items-center justify-between pointer-events-none">
                         <DialogTitle className="text-white text-lg font-cairo">
                             مقدمة الكورس

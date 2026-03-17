@@ -146,7 +146,7 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
                     src={embedUrl}
                     controls
                     autoPlay={autoPlay}
-                    className="absolute inset-0 block w-full h-full object-contain"
+                    className="absolute inset-0 block w-full! h-full! object-contain"
                     style={{ width: '100%', height: '100%', position: 'absolute' }}
                 />
             ) : (
@@ -154,7 +154,9 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
                     src={embedUrl}
                     loading="lazy"
                     title="Video Player"
-                    className="absolute inset-0 block w-full h-full border-0"
+                    className="absolute inset-0 block w-full! h-full! border-0"
+                    width="100%"
+                    height="100%"
                     style={{ width: '100%', height: '100%', position: 'absolute' }}
                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                     allowFullScreen
