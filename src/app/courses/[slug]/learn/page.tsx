@@ -6,7 +6,7 @@ import { PlaylistSidebar } from '@/components/player/playlist-sidebar';
 import { LessonTabs } from '@/components/player/lesson-tabs';
 import { MobilePlaylistDrawer } from '@/components/player/mobile-playlist-drawer';
 import { notFound, redirect } from 'next/navigation';
-import { ChevronRight, Flag } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Flag } from 'lucide-react';
 import Link from 'next/link';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.faiera.com/api/v1';
@@ -145,6 +145,11 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
         return <div className="p-8 text-center text-white">عفوا، لا يوجد محتوى لهذا الكورس حالياً.</div>;
     }
 
+    const flatLessons = curriculum.flatMap((c: any) => c.lessons);
+    const currentIndex = flatLessons.findIndex((l: any) => l.id === activeLesson.id);
+    const previousLesson = currentIndex > 0 ? flatLessons[currentIndex - 1] : null;
+    const nextLesson = currentIndex !== -1 && currentIndex < flatLessons.length - 1 ? flatLessons[currentIndex + 1] : null;
+
     const courseTitle = apiCourse.titleAr || apiCourse.titleEn;
     const isQuiz = activeLesson.type === 'quiz';
     const isArticle = activeLesson.type === 'article';
@@ -227,6 +232,23 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
                                             <Flag className="w-4 h-4" />
                                             الإبلاغ عن مشكلة
                                         </button>
+                                    </div>
+                                    
+                                    {/* Navigation Buttons */}
+                                    <div className="flex w-full items-center justify-between pt-4 border-t border-border mt-4">
+                                        {previousLesson ? (
+                                            <Link href={`/courses/${slug}/learn?lessonId=${previousLesson.id}`} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
+                                                <ChevronRight className="w-4 h-4 ml-2 rtl:rotate-180" />
+                                                السابق
+                                            </Link>
+                                        ) : <div></div>}
+                                        
+                                        {nextLesson ? (
+                                            <Link href={`/courses/${slug}/learn?lessonId=${nextLesson.id}`} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
+                                                التالي
+                                                <ChevronLeft className="w-4 h-4 mr-2 rtl:rotate-180" />
+                                            </Link>
+                                        ) : null}
                                     </div>
                                 </div>
 

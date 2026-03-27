@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ListVideo, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,11 @@ interface MobilePlaylistDrawerProps {
 
 export function MobilePlaylistDrawer({ course, currentLessonId }: MobilePlaylistDrawerProps) {
     const [open, setOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     return (
         <>
@@ -26,44 +32,47 @@ export function MobilePlaylistDrawer({ course, currentLessonId }: MobilePlaylist
                 الدروس
             </Button>
 
-            <AnimatePresence>
-                {open ? (
-                    <>
-                        <motion.button
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[70] bg-black/45 lg:hidden"
-                            onClick={() => setOpen(false)}
-                        />
+            {mounted && createPortal(
+                <AnimatePresence>
+                    {open ? (
+                        <>
+                            <motion.button
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[70] bg-black/45 lg:hidden"
+                                onClick={() => setOpen(false)}
+                            />
 
-                        <motion.div
-                            initial={{ y: '100%' }}
-                            animate={{ y: 0 }}
-                            exit={{ y: '100%' }}
-                            transition={{ duration: 0.28, ease: 'easeOut' }}
-                            className="fixed inset-x-0 bottom-0 z-[71] h-[78vh] rounded-t-[24px] border border-border bg-background shadow-2xl lg:hidden overflow-hidden"
-                        >
-                            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                                <div className="text-right">
-                                    <p className="text-xs font-bold text-primary">التنقل داخل الكورس</p>
-                                    <h3 className="font-cairo text-lg font-bold text-foreground">قائمة الدروس</h3>
+                            <motion.div
+                                initial={{ y: '100%' }}
+                                animate={{ y: 0 }}
+                                exit={{ y: '100%' }}
+                                transition={{ duration: 0.28, ease: 'easeOut' }}
+                                className="fixed inset-x-0 bottom-0 z-[71] h-[78vh] rounded-t-[24px] border border-border bg-background shadow-2xl lg:hidden overflow-hidden"
+                            >
+                                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                                    <div className="text-right">
+                                        <p className="text-xs font-bold text-primary">التنقل داخل الكورس</p>
+                                        <h3 className="font-cairo text-lg font-bold text-foreground">قائمة الدروس</h3>
+                                    </div>
+                                    <button
+                                        onClick={() => setOpen(false)}
+                                        className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setOpen(false)}
-                                    className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
 
-                            <div className="h-[calc(100%-4.5rem)] overflow-hidden">
-                                <PlaylistSidebar course={course} currentLessonId={currentLessonId} />
-                            </div>
-                        </motion.div>
-                    </>
-                ) : null}
-            </AnimatePresence>
+                                <div className="h-[calc(100%-4.5rem)] overflow-hidden">
+                                    <PlaylistSidebar course={course} currentLessonId={currentLessonId} />
+                                </div>
+                            </motion.div>
+                        </>
+                    ) : null}
+                </AnimatePresence>,
+                document.body
+            )}
         </>
     );
 }

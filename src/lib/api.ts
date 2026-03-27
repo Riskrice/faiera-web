@@ -55,6 +55,7 @@ class ApiClient {
 
     private async handleTokenRefresh(): Promise<string> {
         if (this.refreshTokenPromise) {
+            console.log('[ApiClient] Refresh already in progress, waiting...');
             return this.refreshTokenPromise;
         }
 
@@ -66,9 +67,11 @@ class ApiClient {
 
                 const refreshToken = localStorage.getItem('faiera_refresh_token') || sessionStorage.getItem('faiera_refresh_token');
                 if (!refreshToken) {
+                    console.warn('[ApiClient] No refresh token found in storage');
                     throw new Error('No refresh token available');
                 }
 
+                console.log('[ApiClient] Attempting token refresh...');
                 const response = await fetch(`${this.baseUrl}/auth/refresh`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -76,6 +79,7 @@ class ApiClient {
                 });
 
                 if (!response.ok) {
+                    console.error('[ApiClient] Refresh request failed with status:', response.status);
                     throw new Error('Refresh token invalid or expired');
                 }
 
@@ -83,6 +87,7 @@ class ApiClient {
                 const newTokens = result.data as AuthTokens;
 
                 if (!newTokens?.accessToken) {
+                    console.error('[ApiClient] Invalid refresh response schema:', result);
                     throw new Error('Invalid refresh response');
                 }
 
@@ -90,6 +95,7 @@ class ApiClient {
                 const storage = localStorage.getItem('faiera_backend_token') ? localStorage : sessionStorage;
                 const maxAge = storage === localStorage ? 604800 : 86400;
 
+                console.log('[ApiClient] Token refresh successful, updating storage');
                 this.setToken(newTokens.accessToken);
                 storage.setItem('faiera_backend_token', newTokens.accessToken);
                 
@@ -100,6 +106,7 @@ class ApiClient {
                 document.cookie = `faiera_session=${newTokens.accessToken}; path=/; max-age=${maxAge}`;
                 return newTokens.accessToken;
             } catch (error) {
+                console.error('[ApiClient] Token refresh failed critically:', error);
                 // If refresh fails, clear everything to force a clean logout
                 if (typeof window !== 'undefined') {
                     localStorage.removeItem('faiera_backend_token');
@@ -140,17 +147,26 @@ class ApiClient {
         });
 
         if (response.status === 401 && typeof window !== 'undefined' && !options?._isRetry) {
+            console.log(`[ApiClient] 401 Unauthorized for ${endpoint}, attempting auto-refresh...`);
             try {
                 const newToken = await this.handleTokenRefresh();
+                console.log(`[ApiClient] Refresh success, retrying ${endpoint}...`);
+                
                 // Retry with new token
                 headers['Authorization'] = `Bearer ${newToken}`;
                 response = await fetch(`${this.baseUrl}${endpoint}`, {
                     ...fetchOptions,
                     headers,
                 });
+
+                if (response.ok) {
+                    console.log(`[ApiClient] Retry for ${endpoint} successful`);
+                } else {
+                    console.warn(`[ApiClient] Retry for ${endpoint} failed with status:`, response.status);
+                }
             } catch (refreshError) {
-                // Ignore refresh error here and let the original 401 be processed
-                console.warn('Auto-refresh failed during request:', refreshError);
+                console.warn(`[ApiClient] Auto-refresh failed during request for ${endpoint}:`, refreshError);
+                // Let the original 401 or refresh error be processed below
             }
         }
 
@@ -219,8 +235,10 @@ class ApiClient {
         });
 
         if (response.status === 401 && typeof window !== 'undefined' && !options?._isRetry) {
+            console.log(`[ApiClient] 401 Unauthorized for upload ${endpoint}, attempting auto-refresh...`);
             try {
                 const newToken = await this.handleTokenRefresh();
+                console.log(`[ApiClient] Refresh success, retrying upload ${endpoint}...`);
                 const headersInit = headers as Record<string, string>;
                 headersInit['Authorization'] = `Bearer ${newToken}`;
                 response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -229,7 +247,7 @@ class ApiClient {
                     body: formData,
                 });
             } catch (refreshError) {
-                console.warn('Auto-refresh failed during uploadImage:', refreshError);
+                console.warn(`[ApiClient] Auto-refresh failed during uploadImage for ${endpoint}:`, refreshError);
             }
         }
 
@@ -265,8 +283,10 @@ class ApiClient {
         });
 
         if (response.status === 401 && typeof window !== 'undefined') {
+            console.log(`[ApiClient] 401 Unauthorized for upload ${endpoint}, attempting auto-refresh...`);
             try {
                 const newToken = await this.handleTokenRefresh();
+                console.log(`[ApiClient] Refresh success, retrying upload ${endpoint}...`);
                 const headersInit = headers as Record<string, string>;
                 headersInit['Authorization'] = `Bearer ${newToken}`;
                 response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -275,7 +295,7 @@ class ApiClient {
                     body: formData,
                 });
             } catch (refreshError) {
-                console.warn('Auto-refresh failed during upload:', refreshError);
+                console.warn(`[ApiClient] Auto-refresh failed during upload for ${endpoint}:`, refreshError);
             }
         }
 

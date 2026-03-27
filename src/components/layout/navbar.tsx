@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -41,12 +42,14 @@ export function Navbar() {
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 {/* Logo */}
                 <Link href="/" className="flex items-center group">
-                    <div className="h-10 w-[92px] overflow-hidden md:h-14 md:w-[132px] lg:h-16 lg:w-[152px] flex items-center justify-center">
-                        <img
+                    <div className="relative h-10 w-[92px] md:h-14 md:w-[132px] lg:h-16 lg:w-[152px] flex items-center justify-center">
+                        <Image
                             src="/logo.png"
                             alt="Faiera Logo"
-                            className="h-full w-full object-contain scale-[2.1] md:scale-[2.2] origin-center drop-shadow-sm"
-                            style={{ imageRendering: 'crisp-edges', WebkitFontSmoothing: 'antialiased' }}
+                            fill
+                            priority
+                            sizes="(max-width: 768px) 92px, (max-width: 1024px) 132px, 152px"
+                            className="object-contain scale-[2.1] md:scale-[2.2] origin-center drop-shadow-sm"
                         />
                     </div>
                 </Link>
@@ -111,7 +114,9 @@ export function Navbar() {
                         ))}
                         <hr className="border-border" />
                         <Link href="/login" className="text-foreground font-cairo font-bold">تسجيل الدخول</Link>
-                        <Button className="w-full font-cairo">اشترك مجاناً</Button>
+                        <Link href="/register" className="w-full">
+                            <Button className="w-full font-cairo">اشترك مجاناً</Button>
+                        </Link>
                     </div>
                 </motion.div>
             )}
