@@ -23,7 +23,16 @@ import {
     Loader2,
     RefreshCw,
     Trash2,
-    Edit
+    Edit,
+    Eye,
+    EyeOff,
+    CheckCircle2,
+    AlertTriangle,
+    GraduationCap,
+    Phone,
+    Calendar,
+    Clock,
+    Hash,
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
@@ -50,6 +59,27 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { getAcademicProfileBadge } from "@/lib/academic-profile";
+
+type AcademicProfileMetadata = {
+    secondaryYear?: 'grade_10' | 'grade_11' | 'grade_12';
+    studyPath?: 'literary' | 'scientific';
+    scientificSpecialization?: 'science' | 'math' | null;
+    completed?: boolean;
+    completedAt?: string;
+};
+
+type StudentMetadata = {
+    academicProfile?: AcademicProfileMetadata;
+    onboarding?: {
+        academicProfileCompleted?: boolean;
+        academicProfileCompletedAt?: string;
+        [key: string]: unknown;
+    };
+    bio?: string;
+    avatar?: string;
+    [key: string]: unknown;
+};
 
 type Student = {
     id: string;
@@ -60,8 +90,81 @@ type Student = {
     grade?: string;
     status: string;
     createdAt: string;
+    updatedAt?: string;
+    preferredLanguage?: string;
+    lastLoginAt?: string | null;
+    emailVerifiedAt?: string | null;
+    parentId?: string;
+    metadata?: StudentMetadata;
     role: string;
 };
+
+const GRADE_LABELS: Record<string, string> = {
+    grade_1: 'الصف الأول الإعدادي',
+    grade_2: 'الصف الثاني الإعدادي',
+    grade_3: 'الصف الثالث الإعدادي',
+    grade_10: 'الصف الأول الثانوي',
+    grade_11: 'الصف الثاني الثانوي',
+    grade_12: 'الصف الثالث الثانوي',
+};
+
+function isStudentAcademicProfileComplete(student: Student): boolean {
+    const profile = student.metadata?.academicProfile;
+    if (!profile?.secondaryYear || !profile?.studyPath) {
+        return false;
+    }
+
+    if (profile.secondaryYear === 'grade_12' && profile.studyPath === 'scientific') {
+        return !!profile.scientificSpecialization;
+    }
+
+    return true;
+}
+
+function isStudentProfileComplete(student: Student): boolean {
+    return !!student.phone?.trim() && isStudentAcademicProfileComplete(student);
+}
+
+function getProfileCompletionReason(student: Student): string {
+    if (!student.phone?.trim()) {
+        return 'رقم الهاتف غير مكتمل';
+    }
+
+    if (!isStudentAcademicProfileComplete(student)) {
+        return 'لم يكمل المسار الدراسي';
+    }
+
+    return 'الملف مكتمل';
+}
+
+function getStudentGradeLabel(student: Student): string {
+    const profile = student.metadata?.academicProfile;
+    if (profile?.secondaryYear && profile?.studyPath) {
+        return getAcademicProfileBadge(profile as any);
+    }
+
+    if (student.grade && GRADE_LABELS[student.grade]) {
+        return GRADE_LABELS[student.grade];
+    }
+
+    return 'غير محدد';
+}
+
+function formatDateTime(dateValue?: string | null): string {
+    if (!dateValue) {
+        return '-';
+    }
+
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) {
+        return '-';
+    }
+
+    return parsed.toLocaleString('ar-EG', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
+}
 
 export default function StudentsPage() {
     const { accessToken } = useAuth();
@@ -72,12 +175,18 @@ export default function StudentsPage() {
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [detailsLoading, setDetailsLoading] = useState(false);
+    const [detailsStudent, setDetailsStudent] = useState<Student | null>(null);
 
     // Search & Sort State
     const [localSearchTerm, setLocalSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(localSearchTerm, 300);
     const [sortBy, setSortBy] = useState<'createdAt' | 'firstName'>('createdAt');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
 
@@ -95,8 +204,12 @@ export default function StudentsPage() {
         lastName: '',
         email: '',
         grade: '',
+        password: '',
+        confirmPassword: '',
     });
     const [passwordStrength, setPasswordStrength] = useState(0);
+    const [showEditPassword, setShowEditPassword] = useState(false);
+    const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false);
 
     const calculatePasswordStrength = (password: string) => {
         let strength = 0;
@@ -108,6 +221,34 @@ export default function StudentsPage() {
         return strength;
     };
 
+    const generateStrongPassword = (length = 12) => {
+        const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const digits = '0123456789';
+        const symbols = '!@#$%^&*()-_=+[]{}';
+        const allChars = lowercase + uppercase + digits + symbols;
+
+        const randomChar = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+
+        const passwordChars = [
+            randomChar(lowercase),
+            randomChar(uppercase),
+            randomChar(digits),
+            randomChar(symbols),
+        ];
+
+        for (let i = passwordChars.length; i < length; i += 1) {
+            passwordChars.push(randomChar(allChars));
+        }
+
+        for (let i = passwordChars.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [passwordChars[i], passwordChars[j]] = [passwordChars[j], passwordChars[i]];
+        }
+
+        return passwordChars.join('');
+    };
+
     const fetchStudents = useCallback(async () => {
         if (!accessToken) {
             setLoading(false);
@@ -116,24 +257,38 @@ export default function StudentsPage() {
 
         try {
             setLoading(true);
-            const response = await fetch(`${apiUrl}/users?role=student`, {
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-            });
+            const allStudents: Student[] = [];
+            const maxPageSize = 100;
+            let page = 1;
+            let totalPages = 1;
 
-            const data = await response.json().catch(() => ({}));
+            do {
+                const response = await fetch(`${apiUrl}/users?role=student&page=${page}&pageSize=${maxPageSize}`, {
+                    headers: {
+                        "Authorization": `Bearer ${accessToken}`,
+                        "Content-Type": "application/json",
+                    },
+                });
 
-            if (!response.ok) {
-                const errorMessage = data.error?.message || data.message || "فشل في تحميل الطلاب";
+                const data = await response.json().catch(() => ({}));
 
-                if (response.status === 401) throw new Error("جلسة العمل انتهت (401). يرجى تسجيل الدخول.");
-                if (response.status === 403) throw new Error("ليس لديك صلاحية لعرض الطلاب (403).");
-                throw new Error(errorMessage);
-            }
+                if (!response.ok) {
+                    const errorMessage = data.error?.message || data.message || "فشل في تحميل الطلاب";
 
-            setStudents(data.data || data || []);
+                    if (response.status === 401) throw new Error("جلسة العمل انتهت (401). يرجى تسجيل الدخول.");
+                    if (response.status === 403) throw new Error("ليس لديك صلاحية لعرض الطلاب (403).");
+                    throw new Error(errorMessage);
+                }
+
+                const pageStudents = Array.isArray(data?.data) ? data.data : [];
+                allStudents.push(...pageStudents);
+
+                const apiTotalPages = data?.pagination?.totalPages;
+                totalPages = typeof apiTotalPages === 'number' && apiTotalPages > 0 ? apiTotalPages : page;
+                page += 1;
+            } while (page <= totalPages);
+
+            setStudents(allStudents);
         } catch (error: any) {
             console.error("Error fetching students:", error);
             toast.error(error.message || "حدث خطأ أثناء تحميل الطلاب");
@@ -149,6 +304,50 @@ export default function StudentsPage() {
     useEffect(() => {
         setPasswordStrength(calculatePasswordStrength(createForm.password));
     }, [createForm.password]);
+
+    const openEditStudentDialog = (student: Student) => {
+        setSelectedStudent(student);
+        setEditForm({
+            firstName: student.firstName,
+            lastName: student.lastName,
+            email: student.email,
+            grade: student.grade || '',
+            password: '',
+            confirmPassword: '',
+        });
+        setShowEditPassword(false);
+        setShowEditConfirmPassword(false);
+        setIsEditOpen(true);
+    };
+
+    const openStudentDetails = async (student: Student) => {
+        if (!accessToken) return;
+
+        setIsDetailsOpen(true);
+        setDetailsStudent(student);
+        setDetailsLoading(true);
+
+        try {
+            const response = await fetch(`${apiUrl}/users/${student.id}`, {
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data?.error?.message || data?.message || 'فشل في تحميل تفاصيل الطالب');
+            }
+
+            const detailedStudent = (data?.data || student) as Student;
+            setDetailsStudent(detailedStudent);
+        } catch (error: any) {
+            toast.error(error?.message || 'حدث خطأ أثناء تحميل التفاصيل');
+        } finally {
+            setDetailsLoading(false);
+        }
+    };
 
     const handleCreateStudent = async () => {
         if (!accessToken) return;
@@ -203,6 +402,24 @@ export default function StudentsPage() {
 
     const handleUpdateStudent = async () => {
         if (!accessToken || !selectedStudent) return;
+
+        if (editForm.password || editForm.confirmPassword) {
+            if (!editForm.password || !editForm.confirmPassword) {
+                toast.error("يرجى إدخال كلمة المرور وتأكيدها");
+                return;
+            }
+
+            if (editForm.password !== editForm.confirmPassword) {
+                toast.error("كلمة المرور غير متطابقة");
+                return;
+            }
+
+            if (calculatePasswordStrength(editForm.password) < 3) {
+                toast.error("كلمة المرور ضعيفة. استخدم حروفًا كبيرة وصغيرة وأرقامًا ورمزًا.");
+                return;
+            }
+        }
+
         setActionLoading(true);
         try {
             const response = await fetch(`${apiUrl}/users/${selectedStudent.id}`, {
@@ -216,22 +433,40 @@ export default function StudentsPage() {
                     lastName: editForm.lastName,
                     email: editForm.email,
                     grade: editForm.grade || undefined,
+                    ...(editForm.password ? { password: editForm.password } : {}),
                 }),
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || "فشل في تحديث بيانات الطالب");
+                const backendMessage = Array.isArray(errorData?.message)
+                    ? errorData.message.join(' - ')
+                    : (errorData?.error?.message || errorData?.message);
+                throw new Error(backendMessage || "فشل في تحديث بيانات الطالب");
             }
 
             toast.success("تم تحديث بيانات الطالب بنجاح");
             setIsEditOpen(false);
+            setShowEditPassword(false);
+            setShowEditConfirmPassword(false);
             fetchStudents();
         } catch (error: any) {
             toast.error(error.message || "حدث خطأ");
         } finally {
             setActionLoading(false);
         }
+    };
+
+    const handleGenerateEditPassword = () => {
+        const generatedPassword = generateStrongPassword(12);
+        setEditForm(prev => ({
+            ...prev,
+            password: generatedPassword,
+            confirmPassword: generatedPassword,
+        }));
+        setShowEditPassword(true);
+        setShowEditConfirmPassword(true);
+        toast.success("تم توليد كلمة مرور تلقائيًا");
     };
 
     const handleSuspend = async (student: Student) => {
@@ -319,7 +554,8 @@ export default function StudentsPage() {
             const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
             return fullName.includes(searchLower) ||
                 s.email.toLowerCase().includes(searchLower) ||
-                s.id.toLowerCase().includes(searchLower);
+                s.id.toLowerCase().includes(searchLower) ||
+                (s.phone && s.phone.includes(searchLower));
         })
         .sort((a, b) => {
             if (sortBy === 'firstName') {
@@ -331,6 +567,16 @@ export default function StudentsPage() {
                 ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearchTerm, sortBy, sortDir]);
+
+    const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+    const paginatedStudents = filteredStudents.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
     if (loading) {
         return (
@@ -402,6 +648,9 @@ export default function StudentsPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead className="text-right">الطالب</TableHead>
+                            <TableHead className="w-[150px] text-right">رقم الهاتف</TableHead>
+                            <TableHead className="w-[170px] text-right">الصف الدراسي</TableHead>
+                            <TableHead className="w-[170px] text-right">اكتمال البروفايل</TableHead>
                             <TableHead className="w-[100px] text-right">المعرف</TableHead>
                             <TableHead className="text-right">الحالة</TableHead>
                             <TableHead className="text-right">تاريخ الانضمام</TableHead>
@@ -409,9 +658,13 @@ export default function StudentsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredStudents.length > 0 ? (
-                            filteredStudents.map((student) => (
-                                <TableRow key={student.id}>
+                        {paginatedStudents.length > 0 ? (
+                            paginatedStudents.map((student) => (
+                                <TableRow
+                                    key={student.id}
+                                    className="cursor-pointer hover:bg-muted/40 transition-colors"
+                                    onClick={() => openStudentDetails(student)}
+                                >
                                     <TableCell>
                                         <div className="flex items-center gap-3">
                                             <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
@@ -423,15 +676,42 @@ export default function StudentsPage() {
                                             </div>
                                         </div>
                                     </TableCell>
+                                    <TableCell className="font-mono text-sm text-right" dir="ltr">{student.phone || '-'}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2 text-right"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openStudentDetails(student);
+                                            }}
+                                        >
+                                            <GraduationCap className="w-4 h-4 ml-1 text-primary" />
+                                            {getStudentGradeLabel(student)}
+                                        </Button>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {isStudentProfileComplete(student) ? (
+                                            <Badge variant="default" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100" title={getProfileCompletionReason(student)}>
+                                                <CheckCircle2 className="w-3 h-3" /> مكتمل
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-700 hover:bg-amber-100" title={getProfileCompletionReason(student)}>
+                                                <AlertTriangle className="w-3 h-3" /> غير مكتمل
+                                            </Badge>
+                                        )}
+                                    </TableCell>
                                     <TableCell className="font-mono text-xs text-right leading-none">{student.id.slice(0, 8)}</TableCell>
                                     <TableCell className="text-right">{getStatusBadge(student.status)}</TableCell>
                                     <TableCell className="font-sans text-sm text-right leading-none">
                                         {new Date(student.createdAt).toLocaleDateString('ar-EG')}
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
@@ -440,16 +720,7 @@ export default function StudentsPage() {
                                                 <DropdownMenuSeparator />
 
                                                 <DropdownMenuItem
-                                                    onClick={() => {
-                                                        setSelectedStudent(student);
-                                                        setEditForm({
-                                                            firstName: student.firstName,
-                                                            lastName: student.lastName,
-                                                            email: student.email,
-                                                            grade: student.grade || '',
-                                                        });
-                                                        setIsEditOpen(true);
-                                                    }}
+                                                    onClick={() => openEditStudentDialog(student)}
                                                     className="cursor-pointer gap-2 text-right justify-end"
                                                 >
                                                     تعديل البيانات <Edit className="w-4 h-4 ml-2" />
@@ -485,7 +756,7 @@ export default function StudentsPage() {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                                     {debouncedSearchTerm ? "لا يوجد طلاب بهذا الاسم." : "لا يوجد طلاب بعد."}
                                 </TableCell>
                             </TableRow>
@@ -493,6 +764,150 @@ export default function StudentsPage() {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between bg-card p-4 rounded-lg border border-border shadow-sm">
+                    <div className="text-sm text-muted-foreground text-right" dir="rtl">
+                        إجمالي الطلاب: {filteredStudents.length}
+                    </div>
+                    <div className="flex items-center gap-2" dir="rtl">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            السابق
+                        </Button>
+                        <span className="text-sm">
+                            الصفحة {currentPage} من {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage >= totalPages}
+                        >
+                            التالي
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Student Details Dialog */}
+            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                <DialogContent className="w-[95vw] max-w-3xl p-0 [&>button]:hidden">
+                    <div className="max-h-[88vh] overflow-y-auto p-4 sm:p-6">
+                        <DialogHeader className="space-y-3">
+                            <DialogTitle className="text-right">بطاقة الطالب التفصيلية</DialogTitle>
+                        </DialogHeader>
+
+                        {detailsLoading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                            </div>
+                        ) : detailsStudent ? (
+                            <div className="space-y-4 pt-2" dir="rtl">
+                                <div className="rounded-lg border bg-muted/25 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                                                {detailsStudent.firstName?.[0]}{detailsStudent.lastName?.[0]}
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-semibold text-base">{detailsStudent.firstName} {detailsStudent.lastName}</p>
+                                                <p className="text-xs text-muted-foreground font-sans break-all" dir="ltr">{detailsStudent.email}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {getStatusBadge(detailsStudent.status)}
+                                            {isStudentProfileComplete(detailsStudent) ? (
+                                                <Badge variant="default" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100">
+                                                    <CheckCircle2 className="w-3 h-3" /> مكتمل
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-700 hover:bg-amber-100">
+                                                    <AlertTriangle className="w-3 h-3" /> غير مكتمل
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="rounded-md border p-3 text-right">
+                                        <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                            رقم الهاتف <Phone className="w-3.5 h-3.5" />
+                                        </p>
+                                        <p className="font-medium mt-1 font-sans" dir="ltr">{detailsStudent.phone || 'غير مضاف'}</p>
+                                    </div>
+
+                                    <div className="rounded-md border p-3 text-right">
+                                        <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                            الصف الدراسي <GraduationCap className="w-3.5 h-3.5" />
+                                        </p>
+                                        <p className="font-medium mt-1">{getStudentGradeLabel(detailsStudent)}</p>
+                                    </div>
+
+                                    <div className="rounded-md border p-3 text-right">
+                                        <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                            تاريخ الانضمام <Calendar className="w-3.5 h-3.5" />
+                                        </p>
+                                        <p className="font-medium mt-1">{formatDateTime(detailsStudent.createdAt)}</p>
+                                    </div>
+
+                                    <div className="rounded-md border p-3 text-right">
+                                        <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                            آخر تسجيل دخول <Clock className="w-3.5 h-3.5" />
+                                        </p>
+                                        <p className="font-medium mt-1">{detailsStudent.lastLoginAt ? formatDateTime(detailsStudent.lastLoginAt) : 'لم يسجل دخول بعد'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-md border p-4 text-right space-y-2">
+                                    <p className="text-xs text-muted-foreground">المسار الأكاديمي</p>
+                                    {detailsStudent.metadata?.academicProfile ? (
+                                        <p className="font-medium">{getAcademicProfileBadge(detailsStudent.metadata.academicProfile as any)}</p>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">لم يتم تحديد المسار الدراسي بعد.</p>
+                                    )}
+
+                                    {!isStudentProfileComplete(detailsStudent) && (
+                                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 inline-block">
+                                            سبب عدم الاكتمال: {getProfileCompletionReason(detailsStudent)}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="rounded-md border p-3 text-right">
+                                    <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                                        معرف الطالب <Hash className="w-3.5 h-3.5" />
+                                    </p>
+                                    <p className="font-mono text-xs mt-1 break-all" dir="ltr">{detailsStudent.id}</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-8">لا توجد بيانات لعرضها.</p>
+                        )}
+                    </div>
+
+                    <DialogFooter className="gap-2 border-t px-4 py-3 sm:px-6">
+                        <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>إغلاق</Button>
+                        {detailsStudent && (
+                            <Button
+                                onClick={() => {
+                                    setIsDetailsOpen(false);
+                                    openEditStudentDialog(detailsStudent);
+                                }}
+                            >
+                                تعديل بيانات الطالب
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Create Student Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -646,6 +1061,61 @@ export default function StudentsPage() {
                                         <SelectItem value="grade_12">الصف الثالث الثانوي</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-2 text-right pt-4">
+                            <div className="flex items-center justify-between gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleGenerateEditPassword}
+                                    className="h-8 gap-1"
+                                >
+                                    توليد تلقائي <RefreshCw className="h-3.5 w-3.5" />
+                                </Button>
+                                <label className="text-sm font-medium text-gray-700">كلمة المرور الجديدة (اختياري)</label>
+                            </div>
+                            <div className="relative">
+                                <Input
+                                    value={editForm.password}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
+                                    type={showEditPassword ? 'text' : 'password'}
+                                    placeholder="اتركها فارغة إذا لم ترد التغيير"
+                                    dir="rtl"
+                                    className="pl-10"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute left-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                                    onClick={() => setShowEditPassword(prev => !prev)}
+                                >
+                                    {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="space-y-2 text-right">
+                            <label className="text-sm font-medium text-gray-700">تأكيد كلمة المرور الجديدة</label>
+                            <div className="relative">
+                                <Input
+                                    value={editForm.confirmPassword}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                    type={showEditConfirmPassword ? 'text' : 'password'}
+                                    placeholder="أعد كتابة كلمة المرور"
+                                    dir="rtl"
+                                    className="pl-10"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute left-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                                    onClick={() => setShowEditConfirmPassword(prev => !prev)}
+                                >
+                                    {showEditConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
                             </div>
                         </div>
                     </div>

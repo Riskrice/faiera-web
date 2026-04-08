@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { getCourseInstructorName } from "@/lib/course-instructor";
 
 type Course = {
     id: string;
@@ -77,7 +78,7 @@ export function CoursesTable() {
                 enrolled: course.enrolledCount || 0,
                 thumbnail: course.thumbnailUrl || '',
                 category: course.subject || course.grade || 'عام',
-                authorName: course.author?.firstName || 'Admin'
+                authorName: getCourseInstructorName(course, 'بدون مدرس')
             }));
 
             setData(transformedCourses);
@@ -255,15 +256,23 @@ export function CoursesTable() {
                             filteredCourses.map((course) => (
                                 <TableRow key={course.id}>
                                     <TableCell>
-                                        <Avatar className="h-10 w-10 rounded-md">
-                                            {course.thumbnail ? (
-                                                <AvatarImage src={course.thumbnail} alt={course.title} className="object-cover" />
-                                            ) : null}
-                                            <AvatarFallback className="rounded-md bg-muted">
-                                                {course.title.slice(0, 2)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                    </TableCell>
+                        <div className="h-10 w-10 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                            {course.thumbnail ? (
+                                <img
+                                    src={course.thumbnail}
+                                    alt={course.title}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                />
+                            ) : null}
+                            <span className={`text-xs font-bold text-muted-foreground ${course.thumbnail ? 'hidden' : ''}`}>
+                                {course.title.slice(0, 2)}
+                            </span>
+                        </div>
+                    </TableCell>
                                     <TableCell className="font-medium">
                                         <Link href={`/courses/${course.id}`} className="hover:underline">
                                             {course.title}

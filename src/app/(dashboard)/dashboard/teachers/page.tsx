@@ -433,13 +433,13 @@ export default function TeachersPage() {
                         {filteredTeachers.length > 0 ? (
                             filteredTeachers.map((teacher) => (
                                 <TableRow key={teacher.id}>
-                                    <TableCell>
-                                        <div className="flex items-center justify-end gap-3 text-right">
-                                            <div>
-                                                <div className="font-medium">{teacher.user?.firstName} {teacher.user?.lastName}</div>
-                                                <div className="text-xs text-muted-foreground font-sans">{teacher.user?.email}</div>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-3" dir="ltr">
+                                            <div className="min-w-0 text-right">
+                                                <div className="font-medium text-right" dir="rtl">{teacher.user?.firstName} {teacher.user?.lastName}</div>
+                                                <div className="text-xs text-muted-foreground font-sans text-right" dir="ltr">{teacher.user?.email}</div>
                                             </div>
-                                            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs order-last">
+                                            <div className="w-9 h-9 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                                                 {teacher.user?.firstName?.[0]}{teacher.user?.lastName?.[0]}
                                             </div>
                                         </div>

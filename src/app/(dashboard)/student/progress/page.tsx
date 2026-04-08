@@ -106,7 +106,7 @@ export default function StudentProgressPage() {
                                 <BookOpen className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                                 <p>لا توجد دورات قيد التقدم حالياً</p>
                                 <Button variant="link" asChild>
-                                    <Link href="/student/courses">تصفح الكورسات</Link>
+                                    <Link href="/explore">تصفح الكورسات</Link>
                                 </Button>
                             </div>
                         ) : (
@@ -125,7 +125,7 @@ export default function StudentProgressPage() {
                                                     آخر نشاط: {new Date(item.lastAccessedAt).toLocaleDateString('ar-EG')}
                                                 </p>
                                             </div>
-                                            <Link href={`/student/courses/${item.content?.courseId || '1'}/learn/${item.contentId}`}>
+                                            <Link href={`/courses/${item.content?.courseId || item.metadata?.courseId || '1'}/learn?lessonId=${item.contentId}`}>
                                                 <Button size="sm" variant="ghost" className="gap-1 text-primary hover:text-primary hover:bg-primary/10">
                                                     تابع
                                                     <ArrowRight className="w-4 h-4" />

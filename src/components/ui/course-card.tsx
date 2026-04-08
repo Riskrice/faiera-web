@@ -44,6 +44,7 @@ export function CourseCard({ title, category, rating, duration, image, delay = 0
                     fill
                     sizes="(max-width: 640px) 260px, (max-width: 1024px) 280px, 300px"
                     className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    unoptimized
                 />
             ) : (
                 <div className={`absolute inset-0 bg-gradient-to-br ${image} transition-transform duration-700 group-hover:scale-110`} />

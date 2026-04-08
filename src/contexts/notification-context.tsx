@@ -10,6 +10,7 @@ import {
     markAllNotificationsAsRead,
     Notification
 } from "@/lib/api"
+import { initNotificationSound, playNotificationSound } from "@/lib/notification-sound"
 import { toast } from "sonner"
 
 interface NotificationContextType {
@@ -57,19 +58,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     // Socket ref to prevent re-creation
     const socketRef = useRef<Socket | null>(null)
-    // Audio ref for notification sound
-    const audioRef = useRef<HTMLAudioElement | null>(null)
-
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
     // Remove /api/v1 from the end if it exists to get the base URL for socket
     const socketUrl = apiUrl.replace('/api/v1', '')
 
     useEffect(() => {
-        // Initialize notification sound
-        if (typeof window !== 'undefined') {
-            audioRef.current = new Audio('/notification.mp3') // Make sure this file exists in public
-            audioRef.current.volume = 0.5
-        }
+        initNotificationSound()
     }, [])
 
     const fetchNotifications = useCallback(async (pageNum = 1) => {
@@ -167,8 +161,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             newSocket.on('notification', (payload: { type: string, data: any }) => {
                 console.log('New notification received:', payload)
 
-                // Play sound
-                audioRef.current?.play().catch(() => {/* Ignore autoplay errors */ })
+                playNotificationSound()
 
                 // Add to list
                 const newNotification = payload.data as Notification

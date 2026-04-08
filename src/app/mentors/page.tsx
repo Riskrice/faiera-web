@@ -8,6 +8,26 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
+const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api\/v1\/?$/i, '');
+
+function resolveTeacherAvatar(avatar?: string): string {
+    const fallback = '/logo.png';
+    if (!avatar) return fallback;
+
+    const normalized = avatar.trim();
+    if (!normalized) return fallback;
+
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    if (normalized.startsWith('//')) return `https:${normalized}`;
+    if (normalized.startsWith('/')) return normalized;
+
+    if (normalized.startsWith('uploads/')) {
+        return API_ORIGIN ? `${API_ORIGIN}/${normalized}` : `/${normalized}`;
+    }
+
+    return fallback;
+}
+
 interface Teacher {
     id: string;
     userId: string;
@@ -59,7 +79,7 @@ export default function MentorsPage() {
             subject: t.specialization || t.specializations?.[0] || 'متعدد المواد',
             rating: t.rating || 0,
             students: t.totalStudents || 0,
-            image: (t.user as any)?.metadata?.avatar || '/avatars/01.png',
+            image: resolveTeacherAvatar((t.user as any)?.metadata?.avatar),
             bio: t.bio || '',
             role: 'معلم',
             company: 'Faiera',

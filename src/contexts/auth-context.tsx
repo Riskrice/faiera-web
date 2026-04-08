@@ -1,22 +1,71 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { trackEvent } from '@/lib/gtm';
 import { User, LoginResponse, RegisterResponse, AuthTokens } from '@/types/auth';
+import { isAcademicProfileComplete } from '@/lib/academic-profile';
 
 interface AuthContextType {
     user: User | null;
     accessToken: string | null;
     loading: boolean;
     signIn: (email: string, password: string, remember?: boolean) => Promise<{ error: Error | null }>;
+    isAcademicOnboardingRequired: boolean;
     requestOtp: (email: string) => Promise<{ error: Error | null }>;
-    verifyOtp: (email: string, otpCode: string, remember?: boolean) => Promise<{ error: Error | null }>;
-    signUp: (email: string, password: string, metadata?: { name?: string }) => Promise<{ error: Error | null }>;
+    verifyOtp: (email: string, otpCode: string, remember?: boolean, isRegistering?: boolean) => Promise<{ error: Error | null }>;
+    signUp: (email: string, password: string, metadata?: { name?: string; phone?: string }) => Promise<{ error: Error | null }>;
     signOut: () => Promise<void>;
     updateUser: (user: User) => void;
 }
+
+interface RefreshTokenResponse {
+    data?: Partial<AuthTokens>;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null;
+};
+
+const getErrorStatusCode = (error: unknown): number | undefined => {
+    if (!isRecord(error)) return undefined;
+    const rawStatusCode = error.statusCode;
+    return typeof rawStatusCode === 'number' ? rawStatusCode : undefined;
+};
+
+const getErrorMessage = (error: unknown): string | undefined => {
+    if (typeof error === 'string') {
+        return error;
+    }
+
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    if (!isRecord(error)) {
+        return undefined;
+    }
+
+    const message = error.message;
+    if (typeof message === 'string') {
+        return message;
+    }
+
+    if (Array.isArray(message)) {
+        const messages = message.filter((entry): entry is string => typeof entry === 'string');
+        if (messages.length > 0) {
+            return messages.join(' - ');
+        }
+    }
+
+    const nestedError = error.error;
+    if (isRecord(nestedError) && typeof nestedError.message === 'string') {
+        return nestedError.message;
+    }
+
+    return undefined;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -25,17 +74,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [accessToken, setAccessToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
         checkAuth();
     }, []);
 
-    const getFriendlyAuthError = (err: any, fallbackMessage: string) => {
-        if (err?.statusCode === 429 || /too many requests|throttlerexception/i.test(err?.message || '')) {
+    useEffect(() => {
+        if (loading || !user) return;
+
+        const onboardingPath = '/student/onboarding';
+        const needsAcademicOnboarding = user.role === 'student' && !isAcademicProfileComplete(user);
+
+        if (needsAcademicOnboarding && pathname !== onboardingPath) {
+            router.replace(onboardingPath);
+            return;
+        }
+    }, [loading, pathname, router, user]);
+
+    const getFriendlyAuthError = (err: unknown, fallbackMessage: string) => {
+        const statusCode = getErrorStatusCode(err);
+        const message = getErrorMessage(err);
+
+        if (statusCode === 429 || /too many requests|throttlerexception/i.test(message || '')) {
             return 'تم تجاوز عدد المحاولات المسموح به مؤقتًا. انتظر دقيقة ثم حاول مرة أخرى.';
         }
 
-        return err?.message || fallbackMessage;
+        if (
+            statusCode === 401 &&
+            /invalid credentials|unauthorized|invalid email|invalid password/i.test(message || '')
+        ) {
+            return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+        }
+
+        return message || fallbackMessage;
     };
 
     const getTokenExpiry = (token: string) => {
@@ -72,12 +144,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const refreshSession = async (refreshToken: string, storage: Storage, maxAge: number) => {
         const { refreshToken: refreshApi } = await import('@/lib/api');
-        const response = await refreshApi(refreshToken);
-        const newTokens = (response as any).data as AuthTokens | undefined;
+        const response = await refreshApi(refreshToken) as RefreshTokenResponse;
+        const responseTokens = response.data;
 
-        if (!newTokens?.accessToken) {
+        if (!responseTokens?.accessToken) {
             throw new Error('Refresh failed');
         }
+
+        const newTokens: AuthTokens = {
+            accessToken: responseTokens.accessToken,
+            refreshToken: responseTokens.refreshToken ?? refreshToken,
+            expiresIn: typeof responseTokens.expiresIn === 'number' ? responseTokens.expiresIn : 0,
+            tokenType: typeof responseTokens.tokenType === 'string' ? responseTokens.tokenType : 'Bearer',
+        };
 
         console.log('Token refreshed successfully');
         persistTokens(newTokens, storage, maxAge);
@@ -90,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Check both localStorage (remember me) and sessionStorage (session only)
             token = localStorage.getItem('faiera_backend_token');
             let refreshToken = localStorage.getItem('faiera_refresh_token');
-            let useLocalStorage = !!token;
+            const useLocalStorage = !!token;
 
             if (!token) {
                 token = sessionStorage.getItem('faiera_backend_token');
@@ -127,8 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 try {
                     // Try fetch profile with current token
-                    const response = await api.get<{ data: User }>('/auth/me');
-                    const userData = (response as any).data;
+                    const { data: userData } = await api.get<{ data: User }>('/auth/me');
                     if (userData) {
                         setUser(userData);
                         setAccessToken(token);
@@ -136,16 +214,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         // Update stored user
                         storage.setItem('faiera_user', JSON.stringify(userData));
                     }
-                } catch (error: any) {
+                } catch (error: unknown) {
                     // If 401 and we have refresh token, try to refresh
-                    if (error?.statusCode === 401 && refreshToken) {
+                    if (getErrorStatusCode(error) === 401 && refreshToken) {
                         console.log('Token expired, attempting refresh...');
                         try {
                             token = await refreshSession(refreshToken, storage, maxAge);
 
                             // Retry fetching profile
-                            const userResponse = await api.get<{ data: User }>('/auth/me');
-                            const userData = (userResponse as any).data;
+                            const { data: userData } = await api.get<{ data: User }>('/auth/me');
                             if (userData) {
                                 setUser(userData);
                                 storage.setItem('faiera_user', JSON.stringify(userData));
@@ -162,8 +239,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else {
                 console.log('No token found in localStorage or sessionStorage');
             }
-        } catch (error: any) {
-            if (error?.statusCode === 401) {
+        } catch (error: unknown) {
+            if (getErrorStatusCode(error) === 401) {
                 console.warn('Session expired, logging out.');
             } else {
                 console.error('Auth check failed:', error);
@@ -189,22 +266,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 user_role: user.role,
             });
 
-            // Redirect based on role
-            switch (user.role) {
-                case 'admin':
-                case 'super_admin':
-                    router.push('/dashboard');
-                    break;
-                case 'teacher':
-                    router.push('/teacher');
-                    break;
-                case 'student':
-                default:
-                    router.push('/student');
+            if (user.role === 'student' && !isAcademicProfileComplete(user)) {
+                router.push('/student/onboarding');
+            } else {
+                switch (user.role) {
+                    case 'admin':
+                    case 'super_admin':
+                        router.push('/dashboard');
+                        break;
+                    case 'teacher':
+                        router.push('/teacher');
+                        break;
+                    case 'student':
+                    default:
+                        router.push('/student');
+                }
             }
 
             return { error: null };
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Login error details:', err);
             return { error: new Error(getFriendlyAuthError(err, 'Login failed')) };
         }
@@ -214,12 +294,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             await api.post('/auth/request-otp', { email });
             return { error: null };
-        } catch (err: any) {
+        } catch (err: unknown) {
             return { error: new Error(getFriendlyAuthError(err, 'Failed to send verification code')) };
         }
     };
 
-    const verifyOtp = async (email: string, otpCode: string, remember: boolean = false) => {
+    const verifyOtp = async (email: string, otpCode: string, remember: boolean = false, isRegistering: boolean = false) => {
         try {
             const response = await api.post<{ data: LoginResponse }>('/auth/verify-otp', { email, otpCode });
             const { user, tokens } = response.data;
@@ -230,27 +310,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 user_role: user.role,
             });
 
-            // Redirect based on role
-            switch (user.role) {
-                case 'admin':
-                case 'super_admin':
-                    router.push('/dashboard');
-                    break;
-                case 'teacher':
-                    router.push('/teacher');
-                    break;
-                case 'student':
-                default:
-                    router.push('/student');
+            if (user.role === 'student' && !isAcademicProfileComplete(user)) {
+                router.push('/student/onboarding');
+            } else if (isRegistering) {
+                router.push('/welcome');
+            } else {
+                switch (user.role) {
+                    case 'admin':
+                    case 'super_admin':
+                        router.push('/dashboard');
+                        break;
+                    case 'teacher':
+                        router.push('/teacher');
+                        break;
+                    case 'student':
+                    default:
+                        router.push('/student');
+                }
             }
 
             return { error: null };
-        } catch (err: any) {
+        } catch (err: unknown) {
             return { error: new Error(getFriendlyAuthError(err, 'Invalid verification code')) };
         }
     };
 
-    const signUp = async (email: string, password: string, metadata?: { name?: string }) => {
+    const signUp = async (email: string, password: string, metadata?: { name?: string; phone?: string }) => {
         try {
             // Split name if provided
             const [firstName, ...lastNameParts] = (metadata?.name || '').split(' ');
@@ -261,15 +346,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 password,
                 firstName: firstName || 'New',
                 lastName: lastName,
+                ...(metadata?.phone && { phone: metadata.phone }),
             });
 
             trackEvent('sign_up', {
-                method: 'email_otp',
+                method: 'email_password',
                 user_role: response.data.user.role,
             });
 
             return { error: null };
-        } catch (err: any) {
+        } catch (err: unknown) {
             return { error: new Error(getFriendlyAuthError(err, 'Registration failed')) };
         }
     };
@@ -331,8 +417,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const isAcademicOnboardingRequired = user?.role === 'student' && !isAcademicProfileComplete(user);
+
     return (
-        <AuthContext.Provider value={{ user, accessToken, loading, signIn, requestOtp, verifyOtp, signUp, signOut, updateUser }}>
+        <AuthContext.Provider
+            value={{
+                user,
+                accessToken,
+                loading,
+                isAcademicOnboardingRequired,
+                signIn,
+                requestOtp,
+                verifyOtp,
+                signUp,
+                signOut,
+                updateUser,
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );

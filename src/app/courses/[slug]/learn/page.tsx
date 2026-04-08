@@ -5,6 +5,7 @@ import { QuizPlayer } from '@/components/player/quiz-player';
 import { PlaylistSidebar } from '@/components/player/playlist-sidebar';
 import { LessonTabs } from '@/components/player/lesson-tabs';
 import { MobilePlaylistDrawer } from '@/components/player/mobile-playlist-drawer';
+import { LessonProgressButton } from '@/components/player/lesson-progress-button';
 import { notFound, redirect } from 'next/navigation';
 import { ChevronRight, ChevronLeft, Flag } from 'lucide-react';
 import Link from 'next/link';
@@ -213,8 +214,17 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
                                             الإبلاغ عن مشكلة
                                         </button>
                                     </div>
-                                    <div className="prose prose-sm md:prose-base max-w-none text-foreground/90 leading-8 whitespace-pre-wrap font-cairo">
+                                    <div className="prose prose-sm md:prose-base max-w-none text-foreground/90 leading-8 whitespace-pre-wrap font-cairo border-b border-border pb-6 mb-6">
                                         {activeLesson.articleContent || 'لا يوجد محتوى مكتوب متاح لهذا المقال حالياً.'}
+                                    </div>
+                                    <div className="flex justify-center w-full">
+                                        <LessonProgressButton 
+                                            lessonId={activeLesson.id} 
+                                            courseId={course.id} 
+                                            title={activeLesson.title} 
+                                            courseTitle={courseTitle}
+                                            courseThumbnail={course.thumbnailUrl}
+                                        />
                                     </div>
                                 </div>
 
@@ -243,12 +253,20 @@ export default async function LearnPage({ params, searchParams }: PageProps) {
                                             </Link>
                                         ) : <div></div>}
                                         
+                                        <LessonProgressButton 
+                                            lessonId={activeLesson.id} 
+                                            courseId={course.id} 
+                                            title={activeLesson.title} 
+                                            courseTitle={courseTitle}
+                                            courseThumbnail={course.thumbnailUrl}
+                                        />
+                                        
                                         {nextLesson ? (
                                             <Link href={`/courses/${slug}/learn?lessonId=${nextLesson.id}`} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
                                                 التالي
                                                 <ChevronLeft className="w-4 h-4 mr-2 rtl:rotate-180" />
                                             </Link>
-                                        ) : null}
+                                        ) : <div></div>}
                                     </div>
                                 </div>
 

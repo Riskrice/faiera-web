@@ -36,6 +36,9 @@ type OverviewStats = {
     completedCourses: number
     courseGrowth: number
     activeNow: number
+    studentsWithAcademicProfile: number
+    studentsWithoutAcademicProfile: number
+    academicProfileCompletionRate: number
 }
 
 type RevenueDataPoint = {
@@ -65,7 +68,10 @@ export default function AnalyticsPage() {
         userGrowth: 0,
         completedCourses: 0,
         courseGrowth: 0,
-        activeNow: 0
+        activeNow: 0,
+        studentsWithAcademicProfile: 0,
+        studentsWithoutAcademicProfile: 0,
+        academicProfileCompletionRate: 0,
     })
     const [revenueData, setRevenueData] = useState<RevenueDataPoint[]>([])
     const [userGrowthData, setUserGrowthData] = useState<UserGrowthPoint[]>([])
@@ -91,7 +97,10 @@ export default function AnalyticsPage() {
                         userGrowth: data.userGrowth || 0,
                         completedCourses: data.completedCourses || 0,
                         courseGrowth: data.courseGrowth || 0,
-                        activeNow: data.activeUsersToday || 0 // Backend returns activeUsersToday
+                        activeNow: data.activeUsersToday || 0, // Backend returns activeUsersToday
+                        studentsWithAcademicProfile: data.studentsWithAcademicProfile || 0,
+                        studentsWithoutAcademicProfile: data.studentsWithoutAcademicProfile || 0,
+                        academicProfileCompletionRate: data.academicProfileCompletionRate || 0,
                     })
                 }
 
@@ -152,7 +161,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* KPI Stats */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">إجمالي الإيرادات</CardTitle>
@@ -201,6 +210,18 @@ export default function AnalyticsPage() {
                         </p>
                     </CardContent>
                 </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">اكتمال الملف الأكاديمي</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{stats.academicProfileCompletionRate.toFixed(1)}%</div>
+                        <p className="text-xs text-muted-foreground">
+                            {stats.studentsWithAcademicProfile} مكتمل / {stats.studentsWithoutAcademicProfile} غير مكتمل
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -209,9 +230,9 @@ export default function AnalyticsPage() {
                     <CardHeader>
                         <CardTitle>نظرة عامة على الإيرادات</CardTitle>
                     </CardHeader>
-                    <CardContent className="pl-2">
+                    <CardContent className="pl-2 min-w-0">
                         {revenueData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={350}>
+                            <ResponsiveContainer width="100%" minWidth={0} height={350}>
                                 <BarChart data={revenueData}>
                                     <XAxis
                                         dataKey="name"
@@ -251,8 +272,8 @@ export default function AnalyticsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="h-[350px] flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-[350px] min-w-0 flex items-center justify-center">
+                            <ResponsiveContainer width="100%" minWidth={0} height={350}>
                                 <PieChart>
                                     <Pie
                                         data={engagementData}
@@ -291,9 +312,9 @@ export default function AnalyticsPage() {
                     <CardTitle>نمو الطلاب</CardTitle>
                     <CardDescription>مقارنة بين الطلاب النشطين والجدد أسبوعياً</CardDescription>
                 </CardHeader>
-                <CardContent className="h-[300px]">
+                <CardContent className="h-[300px] min-w-0">
                     {userGrowthData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" minWidth={0} height={300}>
                             <LineChart data={userGrowthData}>
                                 <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SecurePlayer } from '@/components/video/secure-player';
+import { checkEnrollment, enrollFreeCourse } from '@/lib/api';
 
 interface EnrollmentCardProps {
     course: Course;
@@ -26,6 +27,8 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
 
     const [isSaved, setIsSaved] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [isEnrolled, setIsEnrolled] = useState(false);
+    const [checkingEnrollment, setCheckingEnrollment] = useState(false);
 
     // Find first free video lesson for preview
     const previewLessonId = course.curriculum?.find(chapter =>
@@ -36,7 +39,27 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
         // Check if course is saved in localStorage
         const savedCourses = JSON.parse(localStorage.getItem('faiera_saved_courses') || '[]');
         setIsSaved(savedCourses.includes(course.id));
-    }, [course.id]);
+        
+        // Check enrollment if user is logged in
+        if (accessToken && user) {
+            let isMounted = true;
+            const verifyEnrollment = async () => {
+                setCheckingEnrollment(true);
+                try {
+                    const res = await checkEnrollment(course.id, accessToken);
+                    if (isMounted) {
+                        setIsEnrolled(res?.data?.enrolled || false);
+                    }
+                } catch (err) {
+                    console.error('Error checking enrollment:', err);
+                } finally {
+                    if (isMounted) setCheckingEnrollment(false);
+                }
+            };
+            verifyEnrollment();
+            return () => { isMounted = false; };
+        }
+    }, [course.id, accessToken, user]);
 
     const handlePreviewOpen = async () => {
         if (!previewLessonId) {
@@ -124,9 +147,25 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
             return;
         }
 
-        // If course is free, go directly to learn page
-        if (!course.price || course.price <= 0) {
+        // If course is free or user already enrolled, go directly to learn page
+        if (isEnrolled) {
             router.push(`/courses/${course.id}/learn`);
+            return;
+        }
+
+        if (!course.price || course.price <= 0) {
+            setIsLoading(true);
+            try {
+                await enrollFreeCourse(course.id, accessToken);
+                toast.success('تم الاشتراك في الكورس بنجاح!');
+                setIsEnrolled(true);
+                router.push(`/courses/${course.id}/learn`);
+            } catch (error: any) {
+                console.error('Enrollment error:', error);
+                toast.error(error.message || 'فشل الاشتراك في الكورس المجاني');
+            } finally {
+                setIsLoading(false);
+            }
             return;
         }
 
@@ -232,14 +271,16 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                 <div className="space-y-3">
                     <Button
                         onClick={handleEnroll}
-                        disabled={isLoading || authLoading}
+                        disabled={isLoading || authLoading || checkingEnrollment}
                         className="w-full text-base md:text-lg h-11 md:h-12 font-bold font-cairo bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
                     >
-                        {isLoading || authLoading ? (
+                        {isLoading || authLoading || checkingEnrollment ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
-                                {authLoading ? 'جاري التحقق...' : 'جاري تحميل صفحة الدفع...'}
+                                {authLoading || checkingEnrollment ? 'جاري التحقق...' : 'جاري تحميل صفحة الدفع...'}
                             </>
+                        ) : isEnrolled ? (
+                            'متابعة التعلم'
                         ) : (
                             'اشترك الآن'
                         )}

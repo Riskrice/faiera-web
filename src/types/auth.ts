@@ -1,3 +1,31 @@
+export type SecondaryYear = 'grade_10' | 'grade_11' | 'grade_12';
+export type StudyPath = 'literary' | 'scientific';
+export type ScientificSpecialization = 'science' | 'math';
+
+export interface AcademicProfile {
+    secondaryYear: SecondaryYear;
+    studyPath: StudyPath;
+    scientificSpecialization?: ScientificSpecialization | null;
+    completed?: boolean;
+    completedAt?: string;
+    source?: string;
+    version?: number;
+}
+
+export interface UserMetadata {
+    avatar?: string;
+    bio?: string;
+    name?: string;
+    phone?: string;
+    academicProfile?: AcademicProfile;
+    onboarding?: {
+        academicProfileCompleted?: boolean;
+        academicProfileCompletedAt?: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
 export interface User {
     id: string;
     email: string;
@@ -9,7 +37,7 @@ export interface User {
     phone?: string;
     avatarUrl?: string;
     bio?: string;
-    metadata?: Record<string, any>;
+    metadata?: UserMetadata;
 }
 
 export interface AuthTokens {

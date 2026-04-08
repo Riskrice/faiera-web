@@ -23,7 +23,8 @@ import {
     Calendar,
     CreditCard,
     FileText,
-    Heart
+    Heart,
+    Compass
 } from 'lucide-react';
 
 const adminItems = [
@@ -96,6 +97,11 @@ const studentItems = [
         icon: BookOpen
     },
     {
+        title: 'كل كورسات المنصة',
+        href: '/explore',
+        icon: Compass
+    },
+    {
         title: 'الحصص المباشرة',
         href: '/student/sessions',
         icon: Video
@@ -116,7 +122,7 @@ const studentItems = [
         icon: Heart
     },
     {
-        title: 'تقدمي',
+        title: 'التقدم',
         href: '/student/progress',
         icon: LineChart
     },

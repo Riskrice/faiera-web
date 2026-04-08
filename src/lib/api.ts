@@ -11,7 +11,7 @@ interface ApiError {
     statusCode: number;
 }
 
-import { AuthTokens } from '@/types/auth';
+import { AuthTokens, SecondaryYear, StudyPath, ScientificSpecialization } from '@/types/auth';
 
 export class ApiRequestError extends Error {
     statusCode: number;
@@ -27,6 +27,15 @@ class ApiClient {
     private baseUrl: string;
     private token: string | null = null;
     private refreshTokenPromise: Promise<string> | null = null;
+    private readonly noAuthHeaderEndpoints = new Set([
+        '/auth/login',
+        '/auth/register',
+        '/auth/request-otp',
+        '/auth/verify-otp',
+        '/auth/forgot-password',
+        '/auth/reset-password',
+        '/auth/refresh',
+    ]);
 
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
@@ -34,6 +43,14 @@ class ApiClient {
 
     setToken(token: string | null) {
         this.token = token;
+    }
+
+    private normalizeEndpoint(endpoint: string): string {
+        return endpoint.split('?')[0];
+    }
+
+    private isPublicAuthEndpoint(endpoint: string): boolean {
+        return this.noAuthHeaderEndpoints.has(this.normalizeEndpoint(endpoint));
     }
 
     private getEffectiveToken(overrideToken?: string): string | null {
@@ -137,7 +154,8 @@ class ApiClient {
         };
 
         const effectiveToken = this.getEffectiveToken(token);
-        if (effectiveToken) {
+        const shouldAttachAuthHeader = !!effectiveToken && !this.isPublicAuthEndpoint(endpoint);
+        if (shouldAttachAuthHeader) {
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
@@ -146,7 +164,14 @@ class ApiClient {
             headers,
         });
 
-        if (response.status === 401 && typeof window !== 'undefined' && !options?._isRetry) {
+        const shouldTryRefresh =
+            response.status === 401 &&
+            typeof window !== 'undefined' &&
+            !options?._isRetry &&
+            shouldAttachAuthHeader &&
+            !this.isPublicAuthEndpoint(endpoint);
+
+        if (shouldTryRefresh) {
             console.log(`[ApiClient] 401 Unauthorized for ${endpoint}, attempting auto-refresh...`);
             try {
                 const newToken = await this.handleTokenRefresh();
@@ -363,12 +388,17 @@ export interface Course {
 
 export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
-export async function getCourses(params?: { limit?: number; sort?: string; search?: string; category?: string; teacherId?: string }) {
+export async function getCourses(params?: { limit?: number; sort?: string; search?: string; category?: string; level?: string; teacherId?: string }) {
     // Should map params to query string
     const query = new URLSearchParams();
-    if (params?.limit) query.append('pageSize', params.limit.toString()); // Map limit to pageSize
+    if (params?.limit) {
+        // Backend validation allows up to 100 only.
+        const safeLimit = Math.min(Math.max(params.limit, 1), 100);
+        query.append('pageSize', safeLimit.toString()); // Map limit to pageSize
+    }
     if (params?.search) query.append('search', params.search);
     if (params?.category) query.append('category', params.category);
+    if (params?.level) query.append('level', params.level);
     if (params?.teacherId) query.append('teacherId', params.teacherId);
     // Add other params as needed
 
@@ -386,6 +416,14 @@ export async function getCourseById(id: string, token?: string) {
 
 export async function getStreamUrl(lessonId: string) {
     return api.get<{ data: { url: string; token: string } }>(`/content/lessons/${lessonId}/stream-url`);
+}
+
+export async function checkEnrollment(courseId: string, token?: string) {
+    return api.get<{ data: { enrolled: boolean } }>(`/content/enrollments/check/${courseId}`, { token });
+}
+
+export async function enrollFreeCourse(courseId: string, token?: string) {
+    return api.post<{ data: any }>(`/content/enrollments/free/${courseId}`, {}, { token });
 }
 
 export async function getStudentStats() {
@@ -407,8 +445,28 @@ export async function getStudentActivity() {
     return api.get<{ data: { name: string; hours: number }[] }>('/progress/my/activity');
 }
 
+export async function updateProgress(data: {
+    contentType: 'lesson' | 'course' | 'video' | 'assessment';
+    contentId: string;
+    progressPercent: number;
+    timeSpent?: number;
+    metadata?: any;
+}, token?: string) {
+    return api.post(`/progress/update`, data, { token });
+}
+
 export async function updateProfile(data: any) {
     return api.put<{ data: any }>('/users/me', data);
+}
+
+export interface UpdateAcademicProfilePayload {
+    secondaryYear: SecondaryYear;
+    studyPath: StudyPath;
+    scientificSpecialization?: ScientificSpecialization;
+}
+
+export async function updateAcademicProfile(data: UpdateAcademicProfilePayload) {
+    return api.put<{ data: any }>('/users/me/academic-profile', data);
 }
 
 export async function uploadAvatar(file: File) {

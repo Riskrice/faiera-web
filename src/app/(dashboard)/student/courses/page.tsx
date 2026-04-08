@@ -56,9 +56,20 @@ export default function StudentCoursesPage() {
                 const subData = await subResponse.json()
                 const subscriptions: any[] = subData.data || []
 
+                // 1.5 Fetch user's direct course enrollments
+                const enrolledCourseIds = new Set<string>();
+                try {
+                    const enrollmentsResponse = await fetch(`${apiUrl}/content/enrollments/my`, {
+                        headers: { "Authorization": `Bearer ${accessToken}` }
+                    })
+                    const enrollmentsData = await enrollmentsResponse.json()
+                    const enrollments: any[] = enrollmentsData.data || []
+                    enrollments.forEach(e => {
+                        if (e.courseId) enrolledCourseIds.add(e.courseId)
+                    })
+                } catch (e) { console.warn('Enrollments fetch failed', e) }
+
                 // 2. Fetch all published courses (with program info)
-                // Note: ideally we should have an endpoint /content/my-courses, 
-                // but we will filter client-side for now based on subscription access.
                 const coursesResponse = await fetch(`${apiUrl}/content/courses?status=published`, {
                     headers: { "Authorization": `Bearer ${accessToken}` }
                 })
@@ -67,6 +78,9 @@ export default function StudentCoursesPage() {
 
                 // 3. Filter courses based on access
                 const enrolledCourses = allCourses.filter(course => {
+                    // Check direct enrollment first
+                    if (enrolledCourseIds.has(course.id)) return true;
+
                     const program = course.program
                     if (!program) return false
 
@@ -79,7 +93,7 @@ export default function StudentCoursesPage() {
                 })
 
                 // 4. Fetch progress for these courses
-                let progressMap: Record<string, any> = {}
+                const progressMap: Record<string, any> = {}
                 try {
                     const progressResponse = await fetch(`${apiUrl}/progress/my`, {
                         headers: { "Authorization": `Bearer ${accessToken}` }

@@ -12,6 +12,7 @@ import { CATEGORIES, COURSES as demoCourses } from '@/data/courses';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { isDemoContentEnabled } from '@/lib/demo-content';
+import { getCourseInstructorName } from '@/lib/course-instructor';
 
 const buildFallbackCourses = (courseIds: string[]): Course[] => {
   return courseIds
@@ -377,7 +378,7 @@ export default function Home() {
                   duration={`${course.lessonsCount || 0} درس`}
                   image={course.thumbnailUrl || '/placeholder.jpg'}
                   level={getLevelLabel(course.level)}
-                  instructor={getInstructorName(course)}
+                  instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
                   className={homepageCarouselCardClass}
                   delay={i * 0.1}
@@ -393,7 +394,7 @@ export default function Home() {
                   duration={`${course.lessonsCount || 0} درس`}
                   image={course.thumbnailUrl || '/placeholder.jpg'}
                   level={getLevelLabel(course.level)}
-                  instructor={getInstructorName(course)}
+                  instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
                   className={homepageCarouselCardClass}
                   delay={i * 0.1}
@@ -426,7 +427,7 @@ export default function Home() {
                   duration={`${course.lessonsCount || 0} درس`}
                   image={course.thumbnailUrl || '/placeholder.jpg'}
                   level={getLevelLabel(course.level)}
-                  instructor={getInstructorName(course)}
+                  instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
                   className={homepageCarouselCardClass}
                   delay={i * 0.1}
@@ -442,7 +443,7 @@ export default function Home() {
                   duration={`${course.lessonsCount || 0} درس`}
                   image={course.thumbnailUrl || '/placeholder.jpg'}
                   level={getLevelLabel(course.level)}
-                  instructor={getInstructorName(course)}
+                  instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
                   className={homepageCarouselCardClass}
                   delay={i * 0.1}

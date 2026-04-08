@@ -136,6 +136,16 @@ export function UploadProvider({ children }: { children: ReactNode }) {
                     return;
                 }
 
+                // Handle specifically the 400 error from Bunny CDN (Expiry/Signature issues)
+                if (status === 400) {
+                    setUploadState(lessonId, {
+                        status: 'error',
+                        errorMessage: 'فشلت عملية المصادقة مع سيرفر الفيديو. يرجى إعادة المحاولة من جديد.',
+                        canResume: false, // Don't resume a 400 error, retry from scratch
+                    });
+                    return;
+                }
+
                 setUploadState(lessonId, {
                     status: 'error',
                     errorMessage: rawErrorMsg,

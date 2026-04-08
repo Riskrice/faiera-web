@@ -3,9 +3,9 @@
 import { Mentor } from '@/data/mentors';
 import { motion } from 'framer-motion';
 import { Github, Linkedin, Twitter, Globe, Star, Users, Briefcase } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from './button';
+import { Avatar, AvatarFallback, AvatarImage } from './avatar';
 
 interface MentorCardProps {
     mentor: Mentor;
@@ -29,15 +29,12 @@ export function MentorCard({ mentor, delay = 0 }: MentorCardProps) {
                 <div className="relative mb-4 group-hover:scale-105 transition-transform duration-500">
                     <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-primary to-emerald-400 blur-sm opacity-50 group-hover:opacity-100 transition-opacity" />
                     <div className="w-24 h-24 rounded-full p-[2px] bg-gradient-to-tr from-primary/50 to-transparent relative">
-                        <div className="absolute inset-0 rounded-full overflow-hidden">
-                            <Image
-                                src={mentor.image}
-                                alt={mentor.name}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                            />
-                        </div>
+                        <Avatar className="w-full h-full bg-emerald-50">
+                            <AvatarImage src={mentor.image} alt={mentor.name} className="object-cover" />
+                            <AvatarFallback className="text-2xl font-bold text-emerald-700 bg-emerald-100">
+                                {mentor.name.split(' ').map(n => n?.[0] || '').join('').substring(0, 2)}
+                            </AvatarFallback>
+                        </Avatar>
                     </div>
                 </div>
 

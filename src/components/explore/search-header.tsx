@@ -27,7 +27,7 @@ export function SearchHeader() {
         }, 500);
 
         return () => clearTimeout(timeout);
-    }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [query]);
 
     return (
         <div className="w-full relative z-20 mb-3 md:mb-6">

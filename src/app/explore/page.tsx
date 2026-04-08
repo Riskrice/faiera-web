@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { CATEGORIES, COURSES as demoCourses } from '@/data/courses';
 import { isDemoContentEnabled } from '@/lib/demo-content';
+import { getCourseInstructorName } from '@/lib/course-instructor';
 
 const categoryLabelMap = Object.fromEntries(CATEGORIES.map((category) => [category.id, category.label]));
 
@@ -44,6 +45,8 @@ const demoApiCourses: Course[] = demoCourses.map((course) => ({
 
 function filterDemoCourses(query: string, category: string, level: string) {
     const normalizedQuery = query.trim().toLowerCase();
+    const selectedCategories = category.split(',').map((item) => item.trim()).filter(Boolean);
+    const selectedLevels = level.split(',').map((item) => item.trim()).filter(Boolean);
 
     return demoApiCourses.filter((course) => {
         const title = `${course.titleAr || ''} ${course.titleEn || ''}`.toLowerCase();
@@ -54,8 +57,71 @@ function filterDemoCourses(query: string, category: string, level: string) {
             || title.includes(normalizedQuery)
             || description.includes(normalizedQuery)
             || categoryLabel.includes(normalizedQuery);
-        const matchesCategory = !category || course.category === category;
-        const matchesLevel = !level || course.level === level;
+        const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(course.category || '');
+        const matchesLevel = selectedLevels.length === 0 || selectedLevels.includes(course.level || '');
+
+        return matchesQuery && matchesCategory && matchesLevel;
+    });
+}
+
+const LEVEL_ALIASES: Record<string, string> = {
+    'grade_4': '1st Secondary',
+    'grade_5': '2nd Secondary',
+    'grade_6': '3rd Secondary',
+    '1st secondary': '1st Secondary',
+    '2nd secondary': '2nd Secondary',
+    '3rd secondary': '3rd Secondary',
+    'grade_10': '1st Secondary',
+    'grade_11': '2nd Secondary',
+    'grade_12': '3rd Secondary',
+    'الصف الأول الثانوي': '1st Secondary',
+    'الصف الثاني الثانوي': '2nd Secondary',
+    'الصف الثالث الثانوي': '3rd Secondary',
+};
+
+const CATEGORY_ALIASES: Record<string, string> = CATEGORIES.reduce((acc, category) => {
+    acc[category.id.toLowerCase()] = category.id;
+    acc[category.label.toLowerCase()] = category.id;
+    return acc;
+}, {} as Record<string, string>);
+
+CATEGORY_ALIASES['arabic_language'] = 'arabic';
+CATEGORY_ALIASES['english_language'] = 'english';
+
+function normalizeLevel(level?: string) {
+    if (!level) return '';
+    const normalized = level.trim().toLowerCase().replace(/\s+/g, ' ');
+    return LEVEL_ALIASES[normalized] || level;
+}
+
+function normalizeCategory(category?: string) {
+    if (!category) return '';
+    const normalized = category.trim().toLowerCase();
+    return CATEGORY_ALIASES[normalized] || normalized;
+}
+
+function filterCoursesClientSide(courses: Course[], query: string, category: string, level: string) {
+    const normalizedQuery = query.trim().toLowerCase();
+    const selectedCategories = category.split(',').map((item) => normalizeCategory(item)).filter(Boolean);
+    const selectedLevels = level.split(',').map((item) => normalizeLevel(item)).filter(Boolean);
+
+    return courses.filter((course) => {
+        const courseCategoryRaw = (course as any).category || (course as any).program?.subject || (course as any).subject;
+        const courseLevelRaw = (course as any).level || (course as any).program?.grade || (course as any).grade;
+
+        const courseCategory = normalizeCategory(String(courseCategoryRaw || ''));
+        const courseLevel = normalizeLevel(String(courseLevelRaw || ''));
+
+        const title = `${course.titleAr || ''} ${course.titleEn || ''} ${(course as any).nameAr || ''} ${(course as any).nameEn || ''}`.toLowerCase();
+        const description = `${course.descriptionAr || ''} ${course.descriptionEn || ''}`.toLowerCase();
+        const categoryLabel = getCategoryLabel(courseCategory).toLowerCase();
+
+        const matchesQuery = !normalizedQuery
+            || title.includes(normalizedQuery)
+            || description.includes(normalizedQuery)
+            || categoryLabel.includes(normalizedQuery);
+        const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(courseCategory);
+        const matchesLevel = selectedLevels.length === 0 || selectedLevels.includes(courseLevel);
 
         return matchesQuery && matchesCategory && matchesLevel;
     });
@@ -109,13 +175,17 @@ function ExploreContent() {
                 const res = await getCourses({
                     search: query,
                     category: category,
+                    level: level,
                     teacherId: teacherId,
                 });
 
+                const apiCourses = res.data || [];
+                const filteredApiCourses = filterCoursesClientSide(apiCourses, query, category, level);
+
                 setFilteredCourses(
                     isDemoContentEnabled
-                        ? enrichCourses(res.data || [], fallbackCourses)
-                        : (res.data || [])
+                        ? enrichCourses(filteredApiCourses, fallbackCourses)
+                        : filteredApiCourses
                 );
             } catch (err) {
                 console.error(err);
@@ -187,6 +257,7 @@ function ExploreContent() {
                                             rating={course.rating || 0}
                                             duration={`${course.lessonsCount || 0} درس`}
                                             image={course.thumbnailUrl || '/placeholder.jpg'}
+                                            instructor={getCourseInstructorName(course)}
                                             delay={index * 0.05}
                                             courseId={course.id}
                                             className="w-full max-w-none sm:max-w-[360px] md:max-w-none md:w-[280px] lg:w-[300px] h-[360px] sm:h-[400px] md:h-[360px] lg:h-[380px]"

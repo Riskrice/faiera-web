@@ -1,13 +1,14 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Loader2, Mail, Lock, User, ShieldCheck, RotateCcw } from 'lucide-react';
+import { Loader2, Mail, Lock, User, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts';
 
@@ -23,8 +24,11 @@ const Label = ({ className, htmlFor, ...props }: React.ComponentProps<'label'>) 
 // Regex for password strength
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
 
+const egyptianPhoneRegex = /^1[0125]\d{8}$/;
+
 const registerSchema = z.object({
     fullName: z.string().min(3, { message: 'الاسم الكامل يجب أن يكون 3 أحرف على الأقل' }),
+    phone: z.string().regex(egyptianPhoneRegex, { message: 'أدخل رقم موبايل مصري صحيح (10 أرقام بعد الـ +20)' }),
     email: z.string().email({ message: 'البريد الإلكتروني غير صحيح' }),
     password: z.string().regex(strongPasswordRegex, {
         message: 'كلمة المرور ضعيفة. يجب أن تحتوي على حرف كبير، صغير، رقم، ورمز خاص.'
@@ -39,11 +43,8 @@ type RegisterValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
     const [isLoading, setIsLoading] = React.useState(false);
-    const [isOtpLoading, setIsOtpLoading] = React.useState(false);
-    const [isResendingOtp, setIsResendingOtp] = React.useState(false);
-    const [verificationEmail, setVerificationEmail] = React.useState('');
-    const [otpCode, setOtpCode] = React.useState('');
-    const { signUp, verifyOtp, requestOtp } = useAuth();
+    const { signUp } = useAuth();
+    const router = useRouter();
 
     // Watch password for strength meter
     const [passwordStrength, setPasswordStrength] = React.useState(0);
@@ -52,6 +53,7 @@ export function RegisterForm() {
         resolver: zodResolver(registerSchema),
         defaultValues: {
             fullName: '',
+            phone: '',
             email: '',
             password: '',
             confirmPassword: '',
@@ -76,7 +78,9 @@ export function RegisterForm() {
 
     async function onSubmit(data: RegisterValues) {
         setIsLoading(true);
-        const { error } = await signUp(data.email, data.password, { name: data.fullName });
+        // Ensure phone starts with +20
+        const formattedPhone = `+20${data.phone}`;
+        const { error } = await signUp(data.email, data.password, { name: data.fullName, phone: formattedPhone });
         setIsLoading(false);
 
         if (error) {
@@ -84,51 +88,12 @@ export function RegisterForm() {
                 description: error.message || 'حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.',
             });
         } else {
-            setVerificationEmail(data.email);
-            setOtpCode('');
             toast.success('تم إنشاء الحساب', {
-                description: 'أرسلنا كود تحقق إلى بريدك الإلكتروني. أدخله لإتمام التفعيل.',
+                description: 'تم إنشاء الحساب بنجاح. تم إرسال رسالة ترحيب إلى بريدك الإلكتروني.',
             });
+            form.reset();
+            router.push('/login');
         }
-    }
-
-    async function handleVerifyOtp() {
-        if (!verificationEmail || otpCode.trim().length !== 6) {
-            toast.error('أدخل كود التحقق المكوّن من 6 أرقام');
-            return;
-        }
-
-        setIsOtpLoading(true);
-        const { error } = await verifyOtp(verificationEmail, otpCode.trim(), false);
-        setIsOtpLoading(false);
-
-        if (error) {
-            toast.error('فشل التحقق من الكود', {
-                description: error.message || 'الكود غير صحيح أو انتهت صلاحيته.',
-            });
-            return;
-        }
-
-        toast.success('تم تفعيل الحساب بنجاح');
-    }
-
-    async function handleResendOtp() {
-        if (!verificationEmail) {
-            return;
-        }
-
-        setIsResendingOtp(true);
-        const { error } = await requestOtp(verificationEmail);
-        setIsResendingOtp(false);
-
-        if (error) {
-            toast.error('تعذر إعادة إرسال الكود', {
-                description: error.message || 'حاول مرة أخرى بعد قليل.',
-            });
-            return;
-        }
-
-        toast.success('تم إرسال كود جديد إلى بريدك الإلكتروني');
     }
 
     const getStrengthColor = (score: number) => {
@@ -139,63 +104,6 @@ export function RegisterForm() {
 
     return (
         <div className="grid gap-6">
-            {verificationEmail ? (
-                <div className="grid gap-4">
-                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-right">
-                        <div className="mb-2 flex items-center justify-end gap-2 text-primary">
-                            <ShieldCheck className="h-4 w-4" />
-                            <span className="text-sm font-bold">تأكيد البريد الإلكتروني</span>
-                        </div>
-                        <p className="text-sm leading-7 text-muted-foreground">
-                            أنشأنا الحساب بنجاح وأرسلنا كود OTP إلى
-                            {' '}
-                            <span className="font-bold text-foreground">{verificationEmail}</span>
-                            . أدخل الكود لتفعيل الحساب وإتمام تسجيل الدخول.
-                        </p>
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="otpCode">كود التحقق</Label>
-                        <div className="relative">
-                            <ShieldCheck className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                id="otpCode"
-                                placeholder="123456"
-                                inputMode="numeric"
-                                maxLength={6}
-                                disabled={isOtpLoading}
-                                value={otpCode}
-                                onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                                className="pr-9 text-right font-sans tracking-[0.35em]"
-                            />
-                        </div>
-                    </div>
-
-                    <Button type="button" onClick={handleVerifyOtp} disabled={isOtpLoading} className="mt-2 text-base h-11">
-                        {isOtpLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                        تأكيد الكود وتفعيل الحساب
-                    </Button>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button type="button" variant="outline" onClick={handleResendOtp} disabled={isResendingOtp} className="flex-1">
-                            {isResendingOtp && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                            إعادة إرسال الكود
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            className="flex-1"
-                            onClick={() => {
-                                setVerificationEmail('');
-                                setOtpCode('');
-                            }}
-                        >
-                            <RotateCcw className="ml-2 h-4 w-4" />
-                            تعديل البريد أو البيانات
-                        </Button>
-                    </div>
-                </div>
-            ) : (
             <form onSubmit={form.handleSubmit(onSubmit)}>
                 <div className="grid gap-4">
                     {/* Full Name */}
@@ -219,6 +127,47 @@ export function RegisterForm() {
                                 <p className="text-sm text-destructive mt-1">{form.formState.errors.fullName.message}</p>
                             )}
                         </div>
+                    </div>
+
+                    {/* Phone */}
+                    <div className="grid gap-2">
+                        <Label htmlFor="phone">رقم الموبايل</Label>
+                        <div className="relative flex rtl:flex-row-reverse border rounded-md border-input bg-background focus-within:ring-2 focus-within:ring-ring transition-shadow overflow-hidden">
+                            {/* Prefix Container */}
+                            <div className="flex items-center gap-2 px-3 bg-muted/60 border-l border-input select-none" dir="ltr">
+                                <span className="text-lg">🇪🇬</span>
+                                <span className="text-sm font-bold text-muted-foreground">+20</span>
+                            </div>
+                            
+                            {/* Input Field */}
+                            <div className="relative flex-1 group">
+                                <Phone className="absolute right-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                <Input
+                                    id="phone"
+                                    placeholder="1012345678"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={10}
+                                    disabled={isLoading}
+                                    className={cn(
+                                        "pr-9 border-0 focus-visible:ring-0 text-right font-sans",
+                                        form.formState.errors.phone && "text-destructive"
+                                    )}
+                                    {...form.register('phone', {
+                                        onChange: (e) => {
+                                            // Auto-remove leading 0 if someone types it
+                                            const val = e.target.value;
+                                            if (val.startsWith('0')) {
+                                                form.setValue('phone', val.substring(1));
+                                            }
+                                        }
+                                    })}
+                                />
+                            </div>
+                        </div>
+                        {form.formState.errors.phone && (
+                            <p className="text-sm text-destructive mt-1">{form.formState.errors.phone.message}</p>
+                        )}
                     </div>
 
                     {/* Email */}
@@ -306,7 +255,6 @@ export function RegisterForm() {
                     </Button>
                 </div>
             </form>
-            )}
         </div>
     );
 }

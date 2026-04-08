@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import { useState, useEffect, useRef } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,10 +12,55 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { User, Lock, Bell, Mail, Smartphone, Globe, Moon, Shield, Save, Upload, Camera, Loader2 } from "lucide-react"
+import { User, Lock, Bell, Mail, Smartphone, Globe, Moon, Shield, Save, Upload, Camera, Loader2, GraduationCap } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts"
 import { updateProfile, uploadAvatar, changePassword } from "@/lib/api"
+import { getAcademicProfileBadge } from "@/lib/academic-profile"
+
+const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL || "https://api.faiera.com/api/v1").replace(/\/api\/v1\/?$/, "")
+
+function normalizeAvatarUrl(url?: string): string {
+    if (!url) return ""
+
+    if (url.startsWith("/uploads/")) {
+        return `${API_ORIGIN}${url}`
+    }
+
+    if (url.startsWith("http://localhost") || url.startsWith("https://localhost")) {
+        const uploadsIndex = url.indexOf("/uploads/")
+        if (uploadsIndex !== -1) {
+            return `${API_ORIGIN}${url.slice(uploadsIndex)}`
+        }
+    }
+
+    return url
+}
+
+function resolveDisplayName(profile?: any): string {
+    const firstName = (profile?.firstName || "").trim()
+    const lastName = (profile?.lastName || "").trim()
+    const fullName = `${firstName} ${lastName}`.trim()
+    if (fullName) return fullName
+
+    const metadataName = (profile?.metadata as any)?.name
+    if (typeof metadataName === "string" && metadataName.trim()) {
+        return metadataName.trim()
+    }
+
+    const email = (profile?.email || "").trim()
+    if (!email) return ""
+
+    return email.split("@")[0].replace(/[._-]+/g, " ").trim()
+}
+
+function resolvePhone(profile?: any): string {
+    const directPhone = (profile?.phone || "").trim()
+    if (directPhone) return directPhone
+
+    const metadataPhone = ((profile?.metadata as any)?.phone || "").trim()
+    return metadataPhone
+}
 
 export default function StudentSettingsPage() {
     const { user, updateUser } = useAuth()
@@ -42,13 +88,14 @@ export default function StudentSettingsPage() {
 
     useEffect(() => {
         if (user) {
+            const displayName = resolveDisplayName(user)
             setUserData(prev => ({
                 ...prev,
-                name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                name: displayName,
                 email: user.email || "",
-                phone: user.phone || "",
+                phone: resolvePhone(user),
                 bio: (user.metadata as any)?.bio || "",
-                avatar: (user.metadata as any)?.avatar || ""
+                avatar: normalizeAvatarUrl((user.metadata as any)?.avatar)
             }))
         }
     }, [user])
@@ -64,6 +111,14 @@ export default function StudentSettingsPage() {
     }
 
     const passwordStrength = calculateStrength(passwords.new);
+    const academicBadge = getAcademicProfileBadge((user?.metadata as any)?.academicProfile || null)
+    const userInitials = (userData.name || userData.email.split("@")[0] || "U")
+        .split(" ")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") || "U"
 
     const getStrengthLabel = (strength: number) => {
         if (strength < 40) return "ضعيف";
@@ -100,7 +155,11 @@ export default function StudentSettingsPage() {
                 firstName,
                 lastName,
                 phone: userData.phone,
-                bio: userData.bio
+                bio: userData.bio,
+                metadata: {
+                    ...(user?.metadata as any || {}),
+                    avatar: normalizeAvatarUrl(userData.avatar)
+                }
             };
 
             const response = await updateProfile(payload);
@@ -115,8 +174,8 @@ export default function StudentSettingsPage() {
                 // Update local state to match guaranteed saved data
                 setUserData(prev => ({
                     ...prev,
-                    name: `${updatedUser.firstName || ''} ${updatedUser.lastName || ''}`.trim(),
-                    phone: updatedUser.phone || prev.phone,
+                    name: resolveDisplayName(updatedUser),
+                    phone: resolvePhone(updatedUser) || prev.phone,
                     bio: (updatedUser.metadata as any)?.bio || prev.bio
                 }));
             } else {
@@ -159,7 +218,25 @@ export default function StudentSettingsPage() {
         try {
             const res = await uploadAvatar(file)
             if (res.url) {
-                setUserData(prev => ({ ...prev, avatar: res.url }))
+                const normalizedAvatarUrl = normalizeAvatarUrl(res.url)
+                setUserData(prev => ({ ...prev, avatar: normalizedAvatarUrl }))
+                
+                // Save avatar immediately to backend
+                try {
+                    const payload = {
+                        metadata: {
+                            ...(user?.metadata as any || {}),
+                            avatar: normalizedAvatarUrl
+                        }
+                    };
+                    const response = await updateProfile(payload);
+                    const updatedUser = (response as any).data || response;
+                    if (updatedUser) updateUser(updatedUser);
+                } catch (e) {
+                    console.error("Failed to save avatar to profile:", e);
+                    toast.error("تم رفع الصورة ولكن لم يتم حفظها في الملف الشخصي")
+                }
+
                 toast.success("تم تحديث الصورة الشخصية")
             }
         } catch (error) {
@@ -175,6 +252,30 @@ export default function StudentSettingsPage() {
                 <h2 className="text-3xl font-bold tracking-tight text-foreground">إعدادات الحساب</h2>
                 <p className="text-muted-foreground">قم بإدارة بياناتك الشخصية، الأمان، وتفضيلات الإشعارات.</p>
             </div>
+
+            <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-3 space-y-2">
+                    <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                        <GraduationCap className="w-6 h-6 text-primary" />
+                        مسارك الدراسي
+                    </CardTitle>
+                    <CardDescription className="text-base leading-relaxed max-w-3xl">
+                        نحرص في فايرا على تقديم تجربة تعليمية استثنائية. 
+                        لذا، بالتعاون مع نخبة من المتخصصين والمفكرين، صممنا هذه المسارات لتوجيهك بدقة نحو التفوق. 
+                        أنت غير ملزم بتعديل مسارك يومياً، فقط عند انتقالك لمرحلة جديدة.
+                        <span className="block mt-3 px-3 py-2 bg-background/50 rounded-md border border-border w-fit font-medium text-foreground">
+                            مرحلتك الحالية: <span className="font-bold text-primary mr-1">{academicBadge}</span>
+                        </span>
+                    </CardDescription>
+                </CardHeader>
+                <CardFooter className="pt-2 pb-6">
+                    <Button asChild size="lg" className="gap-2 font-semibold shadow-md hover:shadow-lg transition-all">
+                        <Link href="/student/onboarding?edit=1">
+                            تعديل السنة والمسار الدراسي
+                        </Link>
+                    </Button>
+                </CardFooter>
+            </Card>
 
             <Tabs defaultValue="profile" className="space-y-6">
                 <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
@@ -196,8 +297,8 @@ export default function StudentSettingsPage() {
                             <div className="flex flex-col sm:flex-row items-center gap-6">
                                 <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                                     <Avatar className="h-24 w-24 border-4 border-muted">
-                                        <AvatarImage src={userData.avatar || "https://github.com/shadcn.png"} alt="@user" />
-                                        <AvatarFallback>UN</AvatarFallback>
+                                        <AvatarImage src={userData.avatar || undefined} alt={userData.name || "user avatar"} />
+                                        <AvatarFallback>{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                         <Camera className="w-8 h-8 text-white" />
