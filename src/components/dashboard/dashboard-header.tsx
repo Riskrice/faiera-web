@@ -1,12 +1,14 @@
-﻿'use client';
+'use client';
 
-import { useState } from 'react';
-import { Menu, X, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Menu, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DashboardSidebar } from './dashboard-sidebar';
 import { NotificationDropdown } from './notification-dropdown';
 import { GlobalSearchCommand } from './global-search-command';
 import { Breadcrumbs } from './breadcrumbs';
+import { usePathname } from 'next/navigation';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface DashboardHeaderProps {
     sidebarCollapsed?: boolean;
@@ -18,6 +20,12 @@ export function DashboardHeader({
     onToggleSidebar,
 }: DashboardHeaderProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const pathname = usePathname();
+
+    // Close the mobile menu automatically when the pathname changes
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [pathname]);
 
     return (
         <>
@@ -53,35 +61,13 @@ export function DashboardHeader({
                 </div>
             </header>
 
-            {mobileMenuOpen && (
-                <div className="fixed inset-0 z-50 lg:hidden">
-                    <div
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                        onClick={() => setMobileMenuOpen(false)}
-                    />
-
-                    <div className="absolute inset-y-0 right-0 w-72 animate-in slide-in-from-right duration-300">
-                        <div className="relative h-full">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute top-4 left-4 z-10"
-                                onClick={() => setMobileMenuOpen(false)}
-                            >
-                                <X className="w-5 h-5" />
-                            </Button>
-
-                            <div
-                                className="[&>aside]:!flex [&>aside]:!static [&>aside]:!h-full [&>aside]:!w-full"
-                                onClick={() => setMobileMenuOpen(false)}
-                            >
-                                <DashboardSidebar collapsed={false} />
-                            </div>
-                        </div>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetContent side="right" className="p-0 w-[280px] sm:w-[320px] bg-background border-l border-border [&>button]:top-5 [&>button]:left-4 [&>button]:z-50 [&>button]:text-foreground/70 hover:[&>button]:text-foreground">
+                    <div className="h-full w-full [&>aside]:!flex [&>aside]:!static [&>aside]:!h-full [&>aside]:!w-full [&>aside]:!border-none [&>aside]:!bg-transparent">
+                        <DashboardSidebar collapsed={false} />
                     </div>
-                </div>
-            )}
+                </SheetContent>
+            </Sheet>
         </>
     );
 }
