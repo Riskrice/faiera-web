@@ -24,9 +24,9 @@ function OAuthRedirectHandler() {
                 }
                 
                 // Set the cookie as well for server-side auth
-                document.cookie = `faiera_session=${accessToken}; path=/; max-age=604800`;
+                document.cookie = `faiera_session=${accessToken}; path=/; max-age=604800; Secure; SameSite=Lax`;
                 if (refreshToken) {
-                    document.cookie = `faiera_refresh=${refreshToken}; path=/; max-age=604800`;
+                    document.cookie = `faiera_refresh=${refreshToken}; path=/; max-age=604800; Secure; SameSite=Lax`;
                 }
 
                 toast.success('تم تسجيل الدخول بنجاح', {      

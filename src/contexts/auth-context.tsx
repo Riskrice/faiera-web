@@ -148,9 +148,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         storage.setItem('faiera_backend_token', refreshedAccessToken);
         if (latestRefreshToken) {
             storage.setItem('faiera_refresh_token', latestRefreshToken);
-            document.cookie = `faiera_refresh=${latestRefreshToken}; path=/; max-age=${maxAge}`;
+            document.cookie = `faiera_refresh=${latestRefreshToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
         }
-        document.cookie = `faiera_session=${refreshedAccessToken}; path=/; max-age=${maxAge}`;
+        document.cookie = `faiera_session=${refreshedAccessToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
 
         console.log('Token refreshed successfully');
         return refreshedAccessToken;
@@ -196,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 if (refreshToken) {
                     storage.setItem('faiera_refresh_token', refreshToken);
-                    document.cookie = `faiera_refresh=${refreshToken}; path=/; max-age=${maxAge}`;
+                    document.cookie = `faiera_refresh=${refreshToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
                 }
 
                 if (refreshToken && isTokenExpiredOrNearExpiry(token)) {
@@ -209,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 // Heal the cookie immediately if it's out of sync with localStorage/sessionStorage
                 if (typeof window !== 'undefined') {
-                    document.cookie = `faiera_session=${token}; path=/; max-age=${maxAge}`;
+                    document.cookie = `faiera_session=${token}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
                 }
 
                 try {
@@ -385,9 +385,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Cookie for middleware (use shorter expiry if not remembering)
         const maxAge = remember ? 604800 : 86400; // 7 days vs 1 day
-        document.cookie = `faiera_session=${tokens.accessToken}; path=/; max-age=${maxAge}`;
-        document.cookie = `faiera_refresh=${tokens.refreshToken}; path=/; max-age=${maxAge}`;
-        document.cookie = `faiera_role=${user.role}; path=/; max-age=${maxAge}`;
+        document.cookie = `faiera_session=${tokens.accessToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
+        document.cookie = `faiera_refresh=${tokens.refreshToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
+        document.cookie = `faiera_role=${user.role}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
     };
 
     const signOut = async () => {
@@ -418,9 +418,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem('faiera_backend_token');
         sessionStorage.removeItem('faiera_refresh_token');
         sessionStorage.removeItem('faiera_user');
-        document.cookie = 'faiera_session=; path=/; max-age=0';
-        document.cookie = 'faiera_refresh=; path=/; max-age=0';
-        document.cookie = 'faiera_role=; path=/; max-age=0';
+        document.cookie = 'faiera_session=; path=/; max-age=0; Secure; SameSite=Lax';
+        document.cookie = 'faiera_refresh=; path=/; max-age=0; Secure; SameSite=Lax';
+        document.cookie = 'faiera_role=; path=/; max-age=0; Secure; SameSite=Lax';
     };
 
     const updateUser = (updatedUser: User) => {

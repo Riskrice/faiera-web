@@ -1,0 +1,332 @@
+﻿'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Edit, Trash2, Eye, ArrowUpDown, Search, X, FolderOpen, Loader2, RefreshCw } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton, ContentEmptyState } from "@/components/ui/data-states";
+import Link from "next/link";
+import { AddCourseWizard } from "@/components/courses/add-course-wizard";
+import { useSearchParams } from "next/navigation";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useDebounce } from "@/hooks/use-debounce";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/contexts";
+import { toast } from "sonner";
+import api from "@/lib/api";
+import { getCourseInstructorName } from "@/lib/course-instructor";
+
+type Course = {
+    id: string;
+    title: string;
+    price: number;
+    currency: string;
+    status: string;
+    enrolled: number;
+    thumbnail: string;
+    category: string;
+    authorName: string;
+};
+
+export function CoursesTable() {
+    const { accessToken } = useAuth();
+    const [data, setData] = useState<Course[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const searchParams = useSearchParams();
+    const initialSearch = searchParams.get('search') || '';
+    const [localSearchTerm, setLocalSearchTerm] = useState(initialSearch);
+    const debouncedSearchTerm = useDebounce(localSearchTerm, 300);
+    const [sortBy, setSortBy] = useState<'title' | 'price' | 'enrolled'>('title');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
+
+    const fetchCourses = useCallback(async () => {
+        try {
+            setLoading(true);
+            // Backend now returns all statuses for authenticated users
+            const result = await api.get<any>('/content/courses');
+            const courses = result.data || result || [];
+
+            // Transform courses to display format
+            const transformedCourses: Course[] = courses.map((course: any) => ({
+                id: course.id,
+                title: course.titleAr || course.titleEn || 'Ø¨Ø¯ÙˆÙ† Ø¹Ù†ÙˆØ§Ù†',
+                price: course.price || 0,
+                currency: course.currency || 'EGP',
+                status: course.status || 'draft',
+                enrolled: course.enrolledCount || 0,
+                thumbnail: course.thumbnailUrl || '',
+                category: course.subject || course.grade || 'Ø¹Ø§Ù…',
+                authorName: getCourseInstructorName(course, 'Ø¨Ø¯ÙˆÙ† Ù…Ø¯Ø±Ø³')
+            }));
+
+            setData(transformedCourses);
+        } catch (error: any) {
+            console.error("Error fetching courses:", error);
+            toast.error(error.message || "Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙƒÙˆØ±Ø³Ø§Øª");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchCourses();
+    }, [fetchCourses]);
+
+    // Filter and sort
+    const filteredCourses = data
+        .filter(course => {
+            if (!debouncedSearchTerm) return true;
+            const searchLower = debouncedSearchTerm.toLowerCase();
+            return course.title.toLowerCase().includes(searchLower) ||
+                course.category.toLowerCase().includes(searchLower) ||
+                course.authorName.toLowerCase().includes(searchLower);
+        })
+        .sort((a, b) => {
+            if (sortBy === 'title') {
+                return sortDir === 'asc'
+                    ? a.title.localeCompare(b.title)
+                    : b.title.localeCompare(a.title);
+            }
+            if (sortBy === 'price') {
+                return sortDir === 'asc' ? a.price - b.price : b.price - a.price;
+            }
+            return sortDir === 'asc' ? a.enrolled - b.enrolled : b.enrolled - a.enrolled;
+        });
+
+    const confirmDelete = async () => {
+        if (!deleteId || !accessToken) return;
+
+        setIsDeleting(true);
+        try {
+            const response = await fetch(`${apiUrl}/content/courses/${deleteId}`, {
+                method: 'DELETE',
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (!response.ok) throw new Error("ÙØ´Ù„ ÙÙŠ Ø­Ø°Ù Ø§Ù„ÙƒÙˆØ±Ø³");
+
+            toast.success("ØªÙ… Ø­Ø°Ù Ø§Ù„ÙƒÙˆØ±Ø³ Ø¨Ù†Ø¬Ø§Ø­");
+            setData(prev => prev.filter(c => c.id !== deleteId));
+        } catch (error: any) {
+            toast.error(error.message || "Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø§Ù„Ø­Ø°Ù");
+        } finally {
+            setIsDeleting(false);
+            setDeleteId(null);
+        }
+    };
+
+    if (loading) { return <TableSkeleton rows={5} columns={6} />; }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center gap-2 bg-card p-4 rounded-lg border border-border shadow-sm">
+                <div className="relative flex-1">
+                    <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Ø¨Ø­Ø« Ø¹Ù† ÙƒÙˆØ±Ø³ (Ø§Ù„Ø¹Ù†ÙˆØ§Ù†ØŒ Ø§Ù„ØªØµÙ†ÙŠÙ)..."
+                        className="pr-9 pl-9"
+                        value={localSearchTerm}
+                        onChange={(e) => setLocalSearchTerm(e.target.value)}
+                    />
+                    {localSearchTerm && (
+                        <button
+                            onClick={() => setLocalSearchTerm('')}
+                            className="absolute left-3 top-3 text-muted-foreground hover:text-foreground"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+                <div className="w-[200px]">
+                    <Select value={`${sortBy}-${sortDir}`} onValueChange={(value) => {
+                        const [key, dir] = value.split('-');
+                        setSortBy(key as any);
+                        setSortDir(dir as any);
+                    }}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="ØªØ±ØªÙŠØ¨ Ø­Ø³Ø¨" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="title-asc">Ø§Ù„Ø¹Ù†ÙˆØ§Ù† (Ø£-ÙŠ)</SelectItem>
+                            <SelectItem value="title-desc">Ø§Ù„Ø¹Ù†ÙˆØ§Ù† (ÙŠ-Ø£)</SelectItem>
+                            <SelectItem value="price-desc">Ø§Ù„Ø³Ø¹Ø± (Ø§Ù„Ø£Ø¹Ù„Ù‰)</SelectItem>
+                            <SelectItem value="price-asc">Ø§Ù„Ø³Ø¹Ø± (Ø§Ù„Ø£Ù‚Ù„)</SelectItem>
+                            <SelectItem value="enrolled-desc">Ø§Ù„Ù…Ø´ØªØ±ÙƒÙŠÙ† (Ø§Ù„Ø£ÙƒØ«Ø±)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <Button variant="outline" onClick={fetchCourses} className="gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                </Button>
+            </div>
+
+            <div className="rounded-md border border-border overflow-hidden">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[80px]">ØµÙˆØ±Ø©</TableHead>
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => {
+                                    setSortBy('title');
+                                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                                }}
+                            >
+                                <div className="flex items-center gap-2">
+                                    Ø§Ø³Ù… Ø§Ù„ÙƒÙˆØ±Ø³
+                                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                            </TableHead>
+                            <TableHead>Ø§Ù„Ø­Ø§Ù„Ø©</TableHead>
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => {
+                                    setSortBy('price');
+                                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                                }}
+                            >
+                                <div className="flex items-center gap-2">
+                                    Ø§Ù„Ø³Ø¹Ø±
+                                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                            </TableHead>
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => {
+                                    setSortBy('enrolled');
+                                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                                }}
+                            >
+                                <div className="flex items-center gap-2">
+                                    Ø§Ù„Ù…Ø´ØªØ±ÙƒÙŠÙ†
+                                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="text-left">Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredCourses.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-[400px]"> <ContentEmptyState type="courses" title="لا توجد كورسات" description="لم يقم المدرب بإضافة أي كورسات حتى الآن." /> </TableCell>
+                            </TableRow>
+                        ) : (
+                            filteredCourses.map((course) => (
+                                <TableRow key={course.id}>
+                                    <TableCell>
+                        <div className="h-10 w-10 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                            {course.thumbnail ? (
+                                <img
+                                    src={course.thumbnail}
+                                    alt={course.title}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                />
+                            ) : null}
+                            <span className={`text-xs font-bold text-muted-foreground ${course.thumbnail ? 'hidden' : ''}`}>
+                                {course.title.slice(0, 2)}
+                            </span>
+                        </div>
+                    </TableCell>
+                                    <TableCell className="font-medium">
+                                        <Link href={`/courses/${course.id}`} className="hover:underline">
+                                            {course.title}
+                                        </Link>
+                                        <div className="text-xs text-muted-foreground">{course.category}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={course.status === 'published' ? 'default' : 'secondary'}>
+                                            {course.status === 'published' ? 'Ù…Ù†Ø´ÙˆØ±' : 'Ù…Ø³ÙˆØ¯Ø©'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {course.price > 0 ? (
+                                            <span className="font-bold">{course.price} {course.currency}</span>
+                                        ) : (
+                                            <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Ù…Ø¬Ø§Ù†ÙŠ</Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>{course.enrolled}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Link href={`/dashboard/courses/${course.id}`}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            </Link>
+                                            <AddCourseWizard
+                                                courseId={course.id}
+                                                course={{
+                                                    title: course.title,
+                                                    price: course.price,
+                                                    currency: course.currency,
+                                                }}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-500">
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            </AddCourseWizard>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                onClick={() => setDeleteId(course.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+
+            <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>ØªØ£ÙƒÙŠØ¯ Ø­Ø°Ù Ø§Ù„ÙƒÙˆØ±Ø³</DialogTitle>
+                        <DialogDescription>
+                            Ù‡Ù„ Ø£Ù†Øª Ù…ØªØ£ÙƒØ¯ Ù…Ù† Ø±ØºØ¨ØªÙƒ ÙÙŠ Ø­Ø°Ù Ù‡Ø°Ø§ Ø§Ù„ÙƒÙˆØ±Ø³ØŸ Ø³ÙŠØªÙ… Ø­Ø°Ù Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…Ø­ØªÙˆÙŠØ§Øª Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø© Ø¨Ù‡.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button variant="ghost" onClick={() => setDeleteId(null)}>Ø¥Ù„ØºØ§Ø¡</Button>
+                        <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+                            {isDeleting ? "Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­Ø°Ù..." : "Ø­Ø°Ù Ù†Ù‡Ø§Ø¦ÙŠ"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}

@@ -303,7 +303,7 @@ class ApiClient {
 
         console.warn('[ApiClient] Detected newer tokens from concurrent refresh, reusing latest session.');
         this.setToken(updatedSession.accessToken);
-        document.cookie = `faiera_session=${updatedSession.accessToken}; path=/; max-age=${updatedSession.maxAge}`;
+        document.cookie = `faiera_session=${updatedSession.accessToken}; path=/; max-age=${updatedSession.maxAge}; Secure; SameSite=Lax`;
         return updatedSession.accessToken;
     }
 
@@ -362,10 +362,10 @@ class ApiClient {
                 
                 if (newTokens.refreshToken) {
                     storage.setItem('faiera_refresh_token', newTokens.refreshToken);
-                    document.cookie = `faiera_refresh=${newTokens.refreshToken}; path=/; max-age=${maxAge}`;
+                    document.cookie = `faiera_refresh=${newTokens.refreshToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
                 }
 
-                document.cookie = `faiera_session=${newTokens.accessToken}; path=/; max-age=${maxAge}`;
+                document.cookie = `faiera_session=${newTokens.accessToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
                 return newTokens.accessToken;
             } catch (error) {
                 const recoveredToken = this.tryRecoverFromConcurrentRefresh(refreshTokenAtStart);
@@ -385,8 +385,8 @@ class ApiClient {
                     localStorage.removeItem('faiera_refresh_token');
                     sessionStorage.removeItem('faiera_backend_token');
                     sessionStorage.removeItem('faiera_refresh_token');
-                    document.cookie = 'faiera_session=; path=/; max-age=0';
-                    document.cookie = 'faiera_refresh=; path=/; max-age=0';
+                    document.cookie = 'faiera_session=; path=/; max-age=0; Secure; SameSite=Lax';
+                    document.cookie = 'faiera_refresh=; path=/; max-age=0; Secure; SameSite=Lax';
                     this.setToken(null);
                 }
                 throw error;
@@ -693,7 +693,7 @@ export async function getCourses(params?: { limit?: number; sort?: string; searc
 }
 
 export async function getCourseById(id: string, token?: string) {
-    console.log('--- getCourseById called ---', { id, hasToken: !!token, tokenPrefix: token?.substring(0, 15) });
+    // Log removed for security
     return api.get<{ data: Course }>(`/content/courses/${id}?includeModules=true`, {
         token,
         cache: 'no-store'
