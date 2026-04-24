@@ -106,16 +106,25 @@ export function Navbar() {
                             <Link
                                 key={link.name}
                                 href={link.href}
+                                onClick={() => setIsOpen(false)}
                                 className="text-muted-foreground hover:text-primary text-lg font-cairo"
                             >
                                 {link.name}
                             </Link>
                         ))}
                         <hr className="border-border" />
-                        <Link href="/login" className="text-foreground font-cairo font-bold">تسجيل الدخول</Link>
-                        <Link href="/register" className="w-full">
-                            <Button className="w-full font-cairo">اشترك مجاناً</Button>
-                        </Link>
+                        {user ? (
+                            <Link href="/dashboard" className="w-full" onClick={() => setIsOpen(false)}>
+                                <Button className="w-full font-cairo text-base py-5 shadow-lg">الذهاب إلى لوحة التحكم</Button>
+                            </Link>
+                        ) : (
+                            <>
+                                <Link href="/login" className="text-foreground font-cairo font-bold" onClick={() => setIsOpen(false)}>تسجيل الدخول</Link>
+                                <Link href="/register" className="w-full" onClick={() => setIsOpen(false)}>
+                                    <Button className="w-full font-cairo text-base py-5 shadow-lg">اشترك مجاناً</Button>
+                                </Link>
+                            </>
+                        )}
                     </div>
                 </motion.div>
             )}
