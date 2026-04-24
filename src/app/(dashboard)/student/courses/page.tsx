@@ -118,7 +118,7 @@ export default function StudentCoursesPage() {
                     return {
                         id: course.id,
                         title: course.titleAr || course.titleEn,
-                        thumbnail: course.thumbnailUrl || "/images/placeholder-course.jpg",
+                        thumbnail: course.thumbnailUrl || "/assets/course-placeholder.svg",
                         progress: progressPercent,
                         lastLesson: prog?.lastLessonTitle || "ابدأ الكورس",
                         totalLessons,

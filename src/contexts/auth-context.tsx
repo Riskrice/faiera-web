@@ -20,10 +20,6 @@ interface AuthContextType {
     updateUser: (user: User) => void;
 }
 
-interface RefreshTokenResponse {
-    data?: Partial<AuthTokens>;
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> => {
     return typeof value === 'object' && value !== null;
 };
@@ -130,37 +126,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return expiry !== null && expiry <= Date.now() + skewMs;
     };
 
-    const persistTokens = (tokens: AuthTokens, storage: Storage, maxAge: number) => {
-        setAccessToken(tokens.accessToken);
-        api.setToken(tokens.accessToken);
-        storage.setItem('faiera_backend_token', tokens.accessToken);
-
-        if (tokens.refreshToken) {
-            storage.setItem('faiera_refresh_token', tokens.refreshToken);
+    const getCookieValue = (name: string): string | null => {
+        if (typeof window === 'undefined') {
+            return null;
         }
 
-        document.cookie = `faiera_session=${tokens.accessToken}; path=/; max-age=${maxAge}`;
+        const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+        return match?.[1] ?? null;
     };
 
-    const refreshSession = async (refreshToken: string, storage: Storage, maxAge: number) => {
-        const { refreshToken: refreshApi } = await import('@/lib/api');
-        const response = await refreshApi(refreshToken) as RefreshTokenResponse;
-        const responseTokens = response.data;
+    const refreshSession = async (_refreshToken: string, storage: Storage, maxAge: number) => {
+        const refreshedAccessToken = await api.refreshAccessToken();
+        const latestRefreshToken =
+            storage.getItem('faiera_refresh_token') ||
+            localStorage.getItem('faiera_refresh_token') ||
+            sessionStorage.getItem('faiera_refresh_token') ||
+            getCookieValue('faiera_refresh');
 
-        if (!responseTokens?.accessToken) {
-            throw new Error('Refresh failed');
+        setAccessToken(refreshedAccessToken);
+        api.setToken(refreshedAccessToken);
+        storage.setItem('faiera_backend_token', refreshedAccessToken);
+        if (latestRefreshToken) {
+            storage.setItem('faiera_refresh_token', latestRefreshToken);
+            document.cookie = `faiera_refresh=${latestRefreshToken}; path=/; max-age=${maxAge}`;
         }
-
-        const newTokens: AuthTokens = {
-            accessToken: responseTokens.accessToken,
-            refreshToken: responseTokens.refreshToken ?? refreshToken,
-            expiresIn: typeof responseTokens.expiresIn === 'number' ? responseTokens.expiresIn : 0,
-            tokenType: typeof responseTokens.tokenType === 'string' ? responseTokens.tokenType : 'Bearer',
-        };
+        document.cookie = `faiera_session=${refreshedAccessToken}; path=/; max-age=${maxAge}`;
 
         console.log('Token refreshed successfully');
-        persistTokens(newTokens, storage, maxAge);
-        return newTokens.accessToken;
+        return refreshedAccessToken;
     };
 
     const checkAuth = async () => {
@@ -187,9 +180,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             }
 
+            if (!refreshToken && typeof window !== 'undefined') {
+                refreshToken = getCookieValue('faiera_refresh');
+            }
+
             if (token) {
                 const storage = useLocalStorage ? localStorage : sessionStorage;
                 const maxAge = useLocalStorage ? 604800 : 86400;
+
+                if (!refreshToken && isTokenExpiredOrNearExpiry(token)) {
+                    console.warn('Session token found without refresh token and is expired; forcing logout.');
+                    logout();
+                    return;
+                }
+
+                if (refreshToken) {
+                    storage.setItem('faiera_refresh_token', refreshToken);
+                    document.cookie = `faiera_refresh=${refreshToken}; path=/; max-age=${maxAge}`;
+                }
 
                 if (refreshToken && isTokenExpiredOrNearExpiry(token)) {
                     console.log('Access token expired before profile fetch, attempting refresh...');
@@ -237,7 +245,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
                 }
             } else {
-                console.log('No token found in localStorage or sessionStorage');
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('No token found in localStorage or sessionStorage');
+                }
             }
         } catch (error: unknown) {
             if (getErrorStatusCode(error) === 401) {
@@ -248,7 +258,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('Logging out due to auth check failure');
             logout(); // Clear invalid state immediately
         } finally {
-            console.log('checkAuth finished. Token state is:', token ? 'SET' : 'EMPTY');
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('checkAuth finished. Token state is:', token ? 'SET' : 'EMPTY');
+            }
             setLoading(false);
         }
     };
@@ -374,13 +386,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Cookie for middleware (use shorter expiry if not remembering)
         const maxAge = remember ? 604800 : 86400; // 7 days vs 1 day
         document.cookie = `faiera_session=${tokens.accessToken}; path=/; max-age=${maxAge}`;
+        document.cookie = `faiera_refresh=${tokens.refreshToken}; path=/; max-age=${maxAge}`;
         document.cookie = `faiera_role=${user.role}; path=/; max-age=${maxAge}`;
     };
 
     const signOut = async () => {
         // Call backend logout to invalidate refresh tokens
         try {
-            const refreshToken = localStorage.getItem('faiera_refresh_token') || sessionStorage.getItem('faiera_refresh_token');
+            const refreshToken =
+                localStorage.getItem('faiera_refresh_token') ||
+                sessionStorage.getItem('faiera_refresh_token') ||
+                getCookieValue('faiera_refresh');
             await api.post('/auth/logout', refreshToken ? { refreshToken } : undefined);
         } catch (err) {
             // Silently ignore logout API errors — still clear local state
@@ -403,6 +419,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem('faiera_refresh_token');
         sessionStorage.removeItem('faiera_user');
         document.cookie = 'faiera_session=; path=/; max-age=0';
+        document.cookie = 'faiera_refresh=; path=/; max-age=0';
         document.cookie = 'faiera_role=; path=/; max-age=0';
     };
 

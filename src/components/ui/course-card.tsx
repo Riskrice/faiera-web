@@ -4,7 +4,12 @@ import { motion } from 'framer-motion';
 import { Play, Star, Clock, GraduationCap, UserRound, Wallet } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+
+const FALLBACK_COURSE_IMAGE = '/assets/course-placeholder.svg';
+
+const isImageSource = (value: string) => value.startsWith('http') || value.startsWith('/');
 
 interface CourseCardProps {
     title: string;
@@ -25,6 +30,11 @@ export function CourseCard({ title, category, rating, duration, image, delay = 0
     const wrapperProps = courseId
         ? { href: `/courses/${courseId}`, className: 'block w-full' }
         : { className: 'block w-full' };
+    const [imageSrc, setImageSrc] = useState(image || FALLBACK_COURSE_IMAGE);
+
+    useEffect(() => {
+        setImageSrc(image || FALLBACK_COURSE_IMAGE);
+    }, [image]);
 
     return (
         <Wrapper {...wrapperProps as any}>
@@ -37,17 +47,22 @@ export function CourseCard({ title, category, rating, duration, image, delay = 0
                     className,
                 )}
             >
-            {(image.startsWith('http') || image.startsWith('/')) ? (
+            {isImageSource(imageSrc) ? (
                 <Image
-                    src={image}
+                    src={imageSrc}
                     alt={title}
                     fill
                     sizes="(max-width: 640px) 260px, (max-width: 1024px) 280px, 300px"
                     className="object-cover transition-transform duration-700 group-hover:scale-110"
                     unoptimized
+                    onError={() => {
+                        if (imageSrc !== FALLBACK_COURSE_IMAGE) {
+                            setImageSrc(FALLBACK_COURSE_IMAGE);
+                        }
+                    }}
                 />
             ) : (
-                <div className={`absolute inset-0 bg-gradient-to-br ${image} transition-transform duration-700 group-hover:scale-110`} />
+                <div className={`absolute inset-0 bg-gradient-to-br ${imageSrc} transition-transform duration-700 group-hover:scale-110`} />
             )}
 
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/10 opacity-95 group-hover:opacity-90 transition-opacity" />

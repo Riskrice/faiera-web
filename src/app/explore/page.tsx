@@ -156,7 +156,7 @@ function enrichCourses(courses: Course[], fallbackCourses: Course[]) {
     return [...normalizedCourses, ...missingCourses].slice(0, 12);
 }
 
-function ExploreContent() {
+export function ExploreContent({ isDashboard }: { isDashboard?: boolean }) {
     const searchParams = useSearchParams();
     const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState(false);
@@ -256,7 +256,7 @@ function ExploreContent() {
                                             category={getCategoryLabel(course.category)}
                                             rating={course.rating || 0}
                                             duration={`${course.lessonsCount || 0} درس`}
-                                            image={course.thumbnailUrl || '/placeholder.jpg'}
+                                            image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                                             instructor={getCourseInstructorName(course)}
                                             delay={index * 0.05}
                                             courseId={course.id}

@@ -21,18 +21,13 @@ const Label = ({ className, htmlFor, ...props }: React.ComponentProps<'label'>) 
     />
 );
 
-// Regex for password strength
-const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
-
 const egyptianPhoneRegex = /^1[0125]\d{8}$/;
 
 const registerSchema = z.object({
     fullName: z.string().min(3, { message: 'الاسم الكامل يجب أن يكون 3 أحرف على الأقل' }),
     phone: z.string().regex(egyptianPhoneRegex, { message: 'أدخل رقم موبايل مصري صحيح (10 أرقام بعد الـ +20)' }),
     email: z.string().email({ message: 'البريد الإلكتروني غير صحيح' }),
-    password: z.string().regex(strongPasswordRegex, {
-        message: 'كلمة المرور ضعيفة. يجب أن تحتوي على حرف كبير، صغير، رقم، ورمز خاص.'
-    }),
+    password: z.string().min(8, { message: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' }),
     confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "كلمات المرور غير متطابقة",
@@ -223,6 +218,7 @@ export function RegisterForm() {
                                 </p>
                             </div>
                         )}
+                        <p className="text-xs text-muted-foreground">الحد الأدنى 8 أحرف.</p>
                         {form.formState.errors.password && (
                             <p className="text-sm text-destructive mt-1">{form.formState.errors.password.message}</p>
                         )}

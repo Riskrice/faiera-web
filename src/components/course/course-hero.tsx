@@ -8,9 +8,10 @@ import Link from 'next/link';
 
 interface CourseHeroProps {
     course: Course;
+    isDashboard?: boolean;
 }
 
-export function CourseHero({ course }: CourseHeroProps) {
+export function CourseHero({ course, isDashboard = false }: CourseHeroProps) {
     return (
         <section className="relative w-full min-h-[420px] md:min-h-[500px] lg:min-h-[560px] flex items-center pt-20 md:pt-24 pb-8 md:pb-12 overflow-hidden bg-background">
             {/* Background Blur Image */}

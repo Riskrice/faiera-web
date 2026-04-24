@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts";
 import { toast } from "sonner";
+import api from "@/lib/api";
 import {
     Dialog,
     DialogContent,
@@ -103,8 +104,6 @@ export default function TeachersPage() {
     });
 
     const [passwordStrength, setPasswordStrength] = useState(0);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
-
     const [localSearchTerm, setLocalSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(localSearchTerm, 300);
     const [sortBy, setSortBy] = useState<'createdAt' | 'rating'>('createdAt');
@@ -127,31 +126,15 @@ export default function TeachersPage() {
 
         try {
             setLoading(true);
-            const response = await fetch(`${apiUrl}/teachers`, {
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                const errorMessage = data.error?.message || data.message || "فشل في تحميل المعلمين";
-
-                if (response.status === 401) throw new Error("جلسة العمل انتهت (401). يرجى تسجيل الدخول.");
-                if (response.status === 403) throw new Error("ليس لديك صلاحية لعرض المعلمين (403).");
-                throw new Error(errorMessage);
-            }
-
-            setTeachers(data.data || data || []);
+            const data = await api.get<any>('/teachers');
+            setTeachers(data?.data || data || []);
         } catch (error: any) {
             console.error("Error fetching teachers:", error);
             toast.error(error.message || "حدث خطأ أثناء تحميل المعلمين");
         } finally {
             setLoading(false);
         }
-    }, [accessToken, apiUrl]);
+    }, [accessToken]);
 
     useEffect(() => {
         fetchTeachers();
@@ -175,26 +158,14 @@ export default function TeachersPage() {
 
         setActionLoading(true);
         try {
-            const response = await fetch(`${apiUrl}/teachers/admin/create`, {
-                method: 'POST',
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    firstName: createForm.firstName,
-                    lastName: createForm.lastName,
-                    email: createForm.email,
-                    password: createForm.password,
-                    bio: createForm.bio || undefined,
-                    avatar: createForm.avatar || undefined,
-                }),
+            await api.post('/teachers/admin/create', {
+                firstName: createForm.firstName,
+                lastName: createForm.lastName,
+                email: createForm.email,
+                password: createForm.password,
+                bio: createForm.bio || undefined,
+                avatar: createForm.avatar || undefined,
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || "فشل في إنشاء المعلم");
-            }
 
             toast.success("تم إنشاء حساب المعلم بنجاح");
             setIsCreateOpen(false);
@@ -213,36 +184,20 @@ export default function TeachersPage() {
         try {
             // 1. Update user basic info + avatar in metadata
             const currentMetadata = selectedTeacher.user?.metadata || {};
-            const response = await fetch(`${apiUrl}/users/${selectedTeacher.user.id}`, {
-                method: 'PUT',
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
+            await api.put(`/users/${selectedTeacher.user.id}`, {
+                firstName: editForm.firstName,
+                lastName: editForm.lastName,
+                metadata: {
+                    ...currentMetadata,
+                    avatar: editForm.avatar || currentMetadata.avatar,
                 },
-                body: JSON.stringify({
-                    firstName: editForm.firstName,
-                    lastName: editForm.lastName,
-                    metadata: {
-                        ...currentMetadata,
-                        avatar: editForm.avatar || currentMetadata.avatar,
-                    },
-                }),
             });
-
-            if (!response.ok) throw new Error("فشل في تحديث بيانات المعلم");
 
             // 2. Update teacher profile bio if changed
             if (editForm.bio) {
-                await fetch(`${apiUrl}/teachers/${selectedTeacher.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        "Authorization": `Bearer ${accessToken}`,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        bioAr: editForm.bio,
-                        bioEn: editForm.bio,
-                    }),
+                await api.put(`/teachers/${selectedTeacher.id}`, {
+                    bioAr: editForm.bio,
+                    bioEn: editForm.bio,
                 }).catch(() => console.log("Bio update skipped"));
             }
 
@@ -260,14 +215,7 @@ export default function TeachersPage() {
         if (!accessToken) return;
         setActionLoading(true);
         try {
-            const response = await fetch(`${apiUrl}/teachers/${teacher.id}/approve`, {
-                method: 'PATCH',
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-            });
-            if (!response.ok) throw new Error("فشل في تفعيل حساب المعلم");
+            await api.patch(`/teachers/${teacher.id}/approve`);
             toast.success("تم تفعيل حساب المعلم بنجاح");
             fetchTeachers();
         } catch (error: any) {
@@ -282,14 +230,7 @@ export default function TeachersPage() {
         if (!accessToken) return;
         setActionLoading(true);
         try {
-            const response = await fetch(`${apiUrl}/teachers/${teacher.id}/suspend`, {
-                method: 'PATCH',
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-            });
-            if (!response.ok) throw new Error("فشل في إيقاف حساب المعلم");
+            await api.patch(`/teachers/${teacher.id}/suspend`);
             toast.success("تم إيقاف حساب المعلم بنجاح");
             fetchTeachers();
         } catch (error: any) {
@@ -306,13 +247,7 @@ export default function TeachersPage() {
 
         setActionLoading(true);
         try {
-            const response = await fetch(`${apiUrl}/users/${teacher.user.id}`, {
-                method: 'DELETE',
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                },
-            });
-            if (!response.ok) throw new Error("فشل في حذف المعلم");
+            await api.delete(`/users/${teacher.user.id}`);
             toast.success("تم حذف المعلم نهائياً");
             fetchTeachers();
         } catch (error: any) {

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import api, { ApiRequestError } from "@/lib/api";
 
 interface SecurePlayerProps {
     lessonId: string;
@@ -41,29 +42,9 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
                 setError(null);
 
                 // Fetch signed URL from our backend (works without token for free lessons)
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
-                const headers: Record<string, string> = {};
-                if (accessToken) {
-                    headers['Authorization'] = `Bearer ${accessToken}`;
-                }
-                const response = await fetch(
-                    `${apiUrl}/content/lessons/${lessonId}/stream-url`,
-                    { headers }
-                );
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-                    const message = errorData.message || errorData.error?.message || `HTTP ${response.status}`;
-
-                    if (mounted && isMissingVideoError(response.status, message)) {
-                        setError(MISSING_VIDEO_MESSAGE);
-                        return;
-                    }
-
-                    throw new Error(message);
-                }
-
-                const responseBody = await response.json();
+                const responseBody = await api.get<any>(`/content/lessons/${lessonId}/stream-url`, {
+                    token: accessToken || undefined,
+                });
                 const videoUrl = responseBody.data?.url || responseBody.url; // Support both wrapped and direct formats
 
                 if (!videoUrl) {
@@ -90,9 +71,10 @@ export function SecurePlayer({ lessonId, autoPlay = false }: SecurePlayerProps) 
                 }
             } catch (err) {
                 if (mounted) {
+                    const statusCode = err instanceof ApiRequestError ? err.statusCode : undefined;
                     const message = err instanceof Error ? err.message : "";
 
-                    if (isMissingVideoError(undefined, message)) {
+                    if (isMissingVideoError(statusCode, message)) {
                         setError(MISSING_VIDEO_MESSAGE);
                         return;
                     }

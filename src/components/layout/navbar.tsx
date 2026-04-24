@@ -47,7 +47,6 @@ export function Navbar() {
                             src="/logo.png"
                             alt="Faiera Logo"
                             fill
-                            priority
                             sizes="(max-width: 768px) 92px, (max-width: 1024px) 132px, 152px"
                             className="object-contain scale-[2.1] md:scale-[2.2] origin-center drop-shadow-sm"
                         />

@@ -1,5 +1,22 @@
 let sharedAudioContext: AudioContext | null = null;
 let unlockListenersAttached = false;
+let hasUserInteraction = false;
+let isAudioUnlocked = false;
+
+function hasTransientUserActivation(): boolean {
+    if (typeof navigator === 'undefined') return true;
+
+    const navWithActivation = navigator as Navigator & {
+        userActivation?: {
+            isActive?: boolean;
+        };
+    };
+
+    // Older browsers may not expose userActivation.
+    if (!navWithActivation.userActivation) return true;
+
+    return navWithActivation.userActivation.isActive !== false;
+}
 
 function getAudioContextCtor(): typeof AudioContext | undefined {
     if (typeof window === 'undefined') return undefined;
@@ -11,6 +28,8 @@ function getAudioContextCtor(): typeof AudioContext | undefined {
 }
 
 function ensureAudioContext(): AudioContext | null {
+    if (!hasUserInteraction) return null;
+
     const AudioContextCtor = getAudioContextCtor();
     if (!AudioContextCtor) return null;
 
@@ -28,6 +47,8 @@ async function unlockAudioContext(): Promise<void> {
     if (context.state === 'suspended') {
         await context.resume().catch(() => undefined);
     }
+
+    isAudioUnlocked = context.state === 'running';
 }
 
 export function initNotificationSound(): void {
@@ -35,8 +56,23 @@ export function initNotificationSound(): void {
 
     unlockListenersAttached = true;
 
-    const unlockOnce = () => {
-        unlockAudioContext().catch(() => undefined);
+    const unlockOnce = async (event: Event) => {
+        // Ignore synthetic events and only unlock during active user gestures.
+        if (!event.isTrusted || !hasTransientUserActivation()) {
+            unlockListenersAttached = false;
+            initNotificationSound();
+            return;
+        }
+
+        hasUserInteraction = true;
+        await unlockAudioContext().catch(() => undefined);
+
+        // If browser still blocks audio unlock, keep trying on next user gesture.
+        if (!isAudioUnlocked) {
+            hasUserInteraction = false;
+            unlockListenersAttached = false;
+            initNotificationSound();
+        }
     };
 
     window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
@@ -48,6 +84,9 @@ export function playNotificationSound(): void {
     if (typeof window === 'undefined') return;
 
     initNotificationSound();
+
+    // Browsers block Web Audio until a real user gesture occurs.
+    if (!hasUserInteraction || !isAudioUnlocked) return;
 
     const context = ensureAudioContext();
     if (!context) return;
@@ -70,15 +109,6 @@ export function playNotificationSound(): void {
         oscillator.start();
         oscillator.stop(context.currentTime + 0.18);
     };
-
-    if (context.state === 'suspended') {
-        context.resume().then(() => {
-            if (context.state === 'running') {
-                emitTone();
-            }
-        }).catch(() => undefined);
-        return;
-    }
 
     if (context.state === 'running') {
         emitTone();

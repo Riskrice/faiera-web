@@ -153,7 +153,8 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
                         contentAr: lesson.articleContent,
                         contentEn: lesson.articleContent,
                     }))
-                }))
+                })),
+                ...(isEditing ? { replaceCurriculum: true } : {})
             };
 
             if (isEditing) {
@@ -186,6 +187,7 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
     const { fields: sections, append: appendSection, remove: removeSection, replace: replaceSections } = useFieldArray({
         control: form.control,
         name: "sections",
+        keyName: "fieldId",
     })
 
     // Reset form when dialog opens — if editing, fetch full course data from API
@@ -651,7 +653,7 @@ export function AddCourseWizard({ children, course, courseId }: { children: Reac
 
                                                 <div className="space-y-4">
                                                     {sections.map((section, index) => (
-                                                        <Card key={section.id} className="border-l-4 border-l-primary overflow-visible">
+                                                        <Card key={(section as any).fieldId} className="border-l-4 border-l-primary overflow-visible">
                                                             <CardContent className="p-4 space-y-4">
                                                                 <div className="flex items-center gap-3">
                                                                     <span className="bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">

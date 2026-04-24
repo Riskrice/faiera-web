@@ -1,4 +1,50 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.faiera.com/api/v1';
+const DEFAULT_API_URL = 'https://api.faiera.com/api/v1';
+
+function trimTrailingSlash(value: string): string {
+    return value.replace(/\/+$/, '');
+}
+
+function ensureApiV1Path(pathname: string): string {
+    const withLeadingSlash = pathname.startsWith('/') ? pathname : `/${pathname}`;
+    const normalized = trimTrailingSlash(withLeadingSlash) || '/';
+
+    if (normalized === '/') {
+        return '/api/v1';
+    }
+
+    if (/\/api\/v1$/i.test(normalized)) {
+        return normalized;
+    }
+
+    if (/\/api$/i.test(normalized)) {
+        return `${normalized}/v1`;
+    }
+
+    return `${normalized}/api/v1`;
+}
+
+function normalizeApiBaseUrl(rawUrl: string): string {
+    const candidate = rawUrl?.trim();
+    if (!candidate) {
+        return DEFAULT_API_URL;
+    }
+
+    if (/^https?:\/\//i.test(candidate)) {
+        try {
+            const parsed = new URL(candidate);
+            parsed.pathname = ensureApiV1Path(parsed.pathname || '/');
+            parsed.search = '';
+            parsed.hash = '';
+            return trimTrailingSlash(parsed.toString());
+        } catch {
+            return DEFAULT_API_URL;
+        }
+    }
+
+    return ensureApiV1Path(candidate);
+}
+
+const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL);
 
 interface RequestOptions extends RequestInit {
     token?: string;
@@ -38,7 +84,79 @@ class ApiClient {
     ]);
 
     constructor(baseUrl: string) {
+        if (typeof window === 'undefined' && baseUrl.startsWith('/')) {
+            this.baseUrl = normalizeApiBaseUrl(process.env.INTERNAL_API_URL || DEFAULT_API_URL);
+            return;
+        }
+
         this.baseUrl = baseUrl;
+    }
+
+    private buildRequestUrl(baseUrl: string, endpoint: string): string {
+        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        return `${baseUrl}${normalizedEndpoint}`;
+    }
+
+    private isDnsResolutionError(error: unknown): boolean {
+        if (!(error instanceof TypeError)) {
+            return false;
+        }
+
+        const message = (error.message || '').toLowerCase();
+        return (
+            message.includes('failed to fetch') ||
+            message.includes('networkerror') ||
+            message.includes('network request failed') ||
+            message.includes('load failed') ||
+            message.includes('err_name_not_resolved')
+        );
+    }
+
+    private getSameOriginFallbackBaseUrl(): string | null {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        if (this.baseUrl.startsWith('/')) {
+            return null;
+        }
+
+        try {
+            const primaryOrigin = new URL(this.baseUrl, window.location.origin).origin;
+            if (primaryOrigin === window.location.origin) {
+                return null;
+            }
+        } catch {
+            return null;
+        }
+
+        return '/api/v1';
+    }
+
+    private async fetchWithDnsFallback(endpoint: string, init: RequestInit): Promise<Response> {
+        const primaryUrl = this.buildRequestUrl(this.baseUrl, endpoint);
+
+        try {
+            return await fetch(primaryUrl, init);
+        } catch (error) {
+            const fallbackBaseUrl = this.getSameOriginFallbackBaseUrl();
+            if (!fallbackBaseUrl || !this.isDnsResolutionError(error)) {
+                throw error;
+            }
+
+            const fallbackUrl = this.buildRequestUrl(fallbackBaseUrl, endpoint);
+            console.warn(`[ApiClient] Request to ${primaryUrl} failed due to DNS/network issue. Retrying via ${fallbackUrl}.`);
+            return fetch(fallbackUrl, init);
+        }
+    }
+
+    private getCookieValue(name: string): string | null {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+        return match?.[1] ?? null;
     }
 
     setToken(token: string | null) {
@@ -70,6 +188,125 @@ class ApiClient {
         return null;
     }
 
+    private getTokenExpiry(token: string): number | null {
+        try {
+            const [, payload] = token.split('.');
+            if (!payload) return null;
+
+            const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+            const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+            const parsedPayload = JSON.parse(atob(paddedPayload));
+
+            return typeof parsedPayload.exp === 'number' ? parsedPayload.exp * 1000 : null;
+        } catch {
+            return null;
+        }
+    }
+
+    private isTokenExpiredOrNearExpiry(token: string, skewMs = 30000): boolean {
+        const expiry = this.getTokenExpiry(token);
+        return expiry !== null && expiry <= Date.now() + skewMs;
+    }
+
+    private async maybeRefreshTokenBeforeRequest(endpoint: string, token: string): Promise<string> {
+        if (typeof window === 'undefined') {
+            return token;
+        }
+
+        if (!this.isTokenExpiredOrNearExpiry(token)) {
+            return token;
+        }
+
+        try {
+            console.log(`[ApiClient] Access token near expiry before ${endpoint}, attempting pre-request refresh...`);
+            const refreshedToken = await this.handleTokenRefresh();
+            this.setToken(refreshedToken);
+            return refreshedToken;
+        } catch (error) {
+            // Fall back to original token; existing 401 retry flow still applies.
+            console.warn(`[ApiClient] Pre-request refresh failed for ${endpoint}, continuing with current token.`, error);
+            return token;
+        }
+    }
+
+    private getSessionSnapshot() {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        const localAccessToken = localStorage.getItem('faiera_backend_token');
+        const localRefreshToken = localStorage.getItem('faiera_refresh_token');
+        if (localAccessToken || localRefreshToken) {
+            return {
+                storage: localStorage,
+                accessToken: localAccessToken,
+                refreshToken: localRefreshToken,
+                maxAge: 604800,
+            };
+        }
+
+        const sessionAccessToken = sessionStorage.getItem('faiera_backend_token');
+        const sessionRefreshToken = sessionStorage.getItem('faiera_refresh_token');
+        if (sessionAccessToken || sessionRefreshToken) {
+            return {
+                storage: sessionStorage,
+                accessToken: sessionAccessToken,
+                refreshToken: sessionRefreshToken,
+                maxAge: 86400,
+            };
+        }
+
+        const cookieAccessToken = this.getCookieValue('faiera_session');
+        const cookieRefreshToken = this.getCookieValue('faiera_refresh');
+        if (cookieAccessToken || cookieRefreshToken) {
+            return {
+                storage: localStorage,
+                accessToken: cookieAccessToken,
+                refreshToken: cookieRefreshToken,
+                maxAge: 604800,
+            };
+        }
+
+        return null;
+    }
+
+    private tryRecoverFromConcurrentRefresh(previousRefreshToken: string | null): string | null {
+        if (typeof window === 'undefined' || !previousRefreshToken) {
+            return null;
+        }
+
+        const candidates = [
+            {
+                storage: localStorage,
+                accessToken: localStorage.getItem('faiera_backend_token'),
+                refreshToken: localStorage.getItem('faiera_refresh_token'),
+                maxAge: 604800,
+            },
+            {
+                storage: sessionStorage,
+                accessToken: sessionStorage.getItem('faiera_backend_token'),
+                refreshToken: sessionStorage.getItem('faiera_refresh_token'),
+                maxAge: 86400,
+            },
+        ];
+
+        const updatedSession = candidates.find(
+            (candidate) =>
+                !!candidate.accessToken &&
+                !!candidate.refreshToken &&
+                candidate.refreshToken !== previousRefreshToken,
+        );
+
+        if (!updatedSession?.accessToken) {
+            return null;
+        }
+
+        console.warn('[ApiClient] Detected newer tokens from concurrent refresh, reusing latest session.');
+        this.setToken(updatedSession.accessToken);
+        document.cookie = `faiera_session=${updatedSession.accessToken}; path=/; max-age=${updatedSession.maxAge}`;
+        return updatedSession.accessToken;
+    }
+
     private async handleTokenRefresh(): Promise<string> {
         if (this.refreshTokenPromise) {
             console.log('[ApiClient] Refresh already in progress, waiting...');
@@ -77,25 +314,32 @@ class ApiClient {
         }
 
         this.refreshTokenPromise = (async () => {
+            const sessionSnapshot = this.getSessionSnapshot();
+            const refreshTokenAtStart = sessionSnapshot?.refreshToken || null;
+
             try {
                 if (typeof window === 'undefined') {
                     throw new Error('Cannot refresh token outside of browser');
                 }
 
-                const refreshToken = localStorage.getItem('faiera_refresh_token') || sessionStorage.getItem('faiera_refresh_token');
-                if (!refreshToken) {
+                if (!refreshTokenAtStart) {
                     console.warn('[ApiClient] No refresh token found in storage');
                     throw new Error('No refresh token available');
                 }
 
                 console.log('[ApiClient] Attempting token refresh...');
-                const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+                const response = await this.fetchWithDnsFallback('/auth/refresh', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refreshToken }),
+                    body: JSON.stringify({ refreshToken: refreshTokenAtStart }),
                 });
 
                 if (!response.ok) {
+                    const recoveredToken = this.tryRecoverFromConcurrentRefresh(refreshTokenAtStart);
+                    if (recoveredToken) {
+                        return recoveredToken;
+                    }
+
                     console.error('[ApiClient] Refresh request failed with status:', response.status);
                     throw new Error('Refresh token invalid or expired');
                 }
@@ -108,9 +352,9 @@ class ApiClient {
                     throw new Error('Invalid refresh response');
                 }
 
-                // Determine which storage to use based on where the old token was
-                const storage = localStorage.getItem('faiera_backend_token') ? localStorage : sessionStorage;
-                const maxAge = storage === localStorage ? 604800 : 86400;
+                const currentSession = this.getSessionSnapshot();
+                const storage = currentSession?.storage || localStorage;
+                const maxAge = currentSession?.maxAge || 604800;
 
                 console.log('[ApiClient] Token refresh successful, updating storage');
                 this.setToken(newTokens.accessToken);
@@ -118,12 +362,23 @@ class ApiClient {
                 
                 if (newTokens.refreshToken) {
                     storage.setItem('faiera_refresh_token', newTokens.refreshToken);
+                    document.cookie = `faiera_refresh=${newTokens.refreshToken}; path=/; max-age=${maxAge}`;
                 }
 
                 document.cookie = `faiera_session=${newTokens.accessToken}; path=/; max-age=${maxAge}`;
                 return newTokens.accessToken;
             } catch (error) {
+                const recoveredToken = this.tryRecoverFromConcurrentRefresh(refreshTokenAtStart);
+                if (recoveredToken) {
+                    return recoveredToken;
+                }
+
                 console.error('[ApiClient] Token refresh failed critically:', error);
+                if (this.isDnsResolutionError(error)) {
+                    // Keep current session on transient network failures.
+                    throw error;
+                }
+
                 // If refresh fails, clear everything to force a clean logout
                 if (typeof window !== 'undefined') {
                     localStorage.removeItem('faiera_backend_token');
@@ -131,6 +386,7 @@ class ApiClient {
                     sessionStorage.removeItem('faiera_backend_token');
                     sessionStorage.removeItem('faiera_refresh_token');
                     document.cookie = 'faiera_session=; path=/; max-age=0';
+                    document.cookie = 'faiera_refresh=; path=/; max-age=0';
                     this.setToken(null);
                 }
                 throw error;
@@ -140,6 +396,10 @@ class ApiClient {
         })();
 
         return this.refreshTokenPromise;
+    }
+
+    async refreshAccessToken(): Promise<string> {
+        return this.handleTokenRefresh();
     }
 
     private async request<T>(
@@ -153,16 +413,22 @@ class ApiClient {
             ...(options.headers as Record<string, string> || {}),
         };
 
-        const effectiveToken = this.getEffectiveToken(token);
-        const shouldAttachAuthHeader = !!effectiveToken && !this.isPublicAuthEndpoint(endpoint);
-        if (shouldAttachAuthHeader) {
+        let effectiveToken = this.getEffectiveToken(token);
+        let shouldAttachAuthHeader = !!effectiveToken && !this.isPublicAuthEndpoint(endpoint);
+        if (shouldAttachAuthHeader && effectiveToken) {
+            effectiveToken = await this.maybeRefreshTokenBeforeRequest(endpoint, effectiveToken);
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
-        let response = await fetch(`${this.baseUrl}${endpoint}`, {
-            ...fetchOptions,
-            headers,
-        });
+        let response: Response;
+        try {
+            response = await this.fetchWithDnsFallback(endpoint, {
+                ...fetchOptions,
+                headers,
+            });
+        } catch (error) {
+            throw new ApiRequestError(error instanceof Error ? error.message : 'Network request failed', 0);
+        }
 
         const shouldTryRefresh =
             response.status === 401 &&
@@ -179,10 +445,14 @@ class ApiClient {
                 
                 // Retry with new token
                 headers['Authorization'] = `Bearer ${newToken}`;
-                response = await fetch(`${this.baseUrl}${endpoint}`, {
-                    ...fetchOptions,
-                    headers,
-                });
+                try {
+                    response = await this.fetchWithDnsFallback(endpoint, {
+                        ...fetchOptions,
+                        headers,
+                    });
+                } catch (error) {
+                    throw new ApiRequestError(error instanceof Error ? error.message : 'Network request failed', 0);
+                }
 
                 if (response.ok) {
                     console.log(`[ApiClient] Retry for ${endpoint} successful`);
@@ -247,17 +517,25 @@ class ApiClient {
 
         // We need to use native fetch directly for uploads to avoid JSON stringification
         // and let the browser set the correct multipart/form-data boundary
-        const effectiveToken = this.getEffectiveToken(options?.token);
+        let effectiveToken = this.getEffectiveToken(options?.token);
+        if (effectiveToken) {
+            effectiveToken = await this.maybeRefreshTokenBeforeRequest(endpoint, effectiveToken);
+        }
         const headers: HeadersInit = {};
         if (effectiveToken) {
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
-        let response = await fetch(`${this.baseUrl}${endpoint}`, {
-            method: 'POST',
-            headers,
-            body: formData,
-        });
+        let response: Response;
+        try {
+            response = await this.fetchWithDnsFallback(endpoint, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+        } catch (error) {
+            throw new Error(error instanceof Error ? error.message : 'Network request failed');
+        }
 
         if (response.status === 401 && typeof window !== 'undefined' && !options?._isRetry) {
             console.log(`[ApiClient] 401 Unauthorized for upload ${endpoint}, attempting auto-refresh...`);
@@ -266,7 +544,7 @@ class ApiClient {
                 console.log(`[ApiClient] Refresh success, retrying upload ${endpoint}...`);
                 const headersInit = headers as Record<string, string>;
                 headersInit['Authorization'] = `Bearer ${newToken}`;
-                response = await fetch(`${this.baseUrl}${endpoint}`, {
+                response = await this.fetchWithDnsFallback(endpoint, {
                     method: 'POST',
                     headers: headersInit,
                     body: formData,
@@ -296,16 +574,24 @@ class ApiClient {
         formData.append('file', file);
 
         const headers: HeadersInit = {};
-        const effectiveToken = this.getEffectiveToken(token);
+        let effectiveToken = this.getEffectiveToken(token);
+        if (effectiveToken) {
+            effectiveToken = await this.maybeRefreshTokenBeforeRequest(endpoint, effectiveToken);
+        }
         if (effectiveToken) {
             headers['Authorization'] = `Bearer ${effectiveToken}`;
         }
 
-        let response = await fetch(`${this.baseUrl}${endpoint}`, {
-            method: 'POST',
-            headers,
-            body: formData,
-        });
+        let response: Response;
+        try {
+            response = await this.fetchWithDnsFallback(endpoint, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+        } catch (error) {
+            throw new Error(error instanceof Error ? error.message : 'Network request failed');
+        }
 
         if (response.status === 401 && typeof window !== 'undefined') {
             console.log(`[ApiClient] 401 Unauthorized for upload ${endpoint}, attempting auto-refresh...`);
@@ -314,7 +600,7 @@ class ApiClient {
                 console.log(`[ApiClient] Refresh success, retrying upload ${endpoint}...`);
                 const headersInit = headers as Record<string, string>;
                 headersInit['Authorization'] = `Bearer ${newToken}`;
-                response = await fetch(`${this.baseUrl}${endpoint}`, {
+                response = await this.fetchWithDnsFallback(endpoint, {
                     method: 'POST',
                     headers: headersInit,
                     body: formData,

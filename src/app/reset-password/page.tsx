@@ -139,7 +139,7 @@ function ResetPasswordContent() {
                                     </button>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    يجب أن تحتوي على حرف كبير وصغير ورقم وحرف خاص
+                                    الحد الأدنى لكلمة المرور: 8 أحرف
                                 </p>
                             </div>
 

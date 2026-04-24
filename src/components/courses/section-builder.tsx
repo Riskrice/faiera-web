@@ -37,6 +37,7 @@ export function SectionBuilder({ nestIndex }: SectionBuilderProps) {
     const { fields: lessons, append, remove, move } = useFieldArray({
         control,
         name: `sections.${nestIndex}.lessons`,
+        keyName: "fieldId",
     })
 
     const [editingLesson, setEditingLesson] = useState<{ sIndex: number, lIndex: number } | null>(null)
@@ -79,7 +80,7 @@ export function SectionBuilder({ nestIndex }: SectionBuilderProps) {
 
                         return (
                             <motion.div
-                                key={lesson.id}
+                                key={(lesson as any).fieldId}
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}

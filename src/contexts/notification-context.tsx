@@ -130,10 +130,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (!socketRef.current) {
             const newSocket = io(`${socketUrl}/notifications`, {
                 auth: { token: accessToken },
-                transports: ['websocket', 'polling'],
+                // Start with polling, then upgrade to websocket when available.
+                // This avoids repeated hard websocket failures on some networks/proxies.
+                transports: ['polling', 'websocket'],
                 reconnection: true,
-                reconnectionAttempts: 5,
-                timeout: 10000,
+                reconnectionAttempts: 20,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000,
             })
 
             newSocket.on('connect', () => {

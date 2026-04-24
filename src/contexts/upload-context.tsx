@@ -39,6 +39,45 @@ interface TusUploadRef {
     onComplete?: (videoId: string, durationSeconds: number) => void;
     videoId: string;
     durationSeconds: number;
+    endpoints: string[];
+    endpointIndex: number;
+}
+
+const DEFAULT_TUS_ENDPOINT = 'https://video.bunnycdn.com/tusupload';
+
+function normalizeTusEndpoint(endpoint: string): string {
+    const trimmed = endpoint.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    const withoutTrailingSlash = trimmed.replace(/\/+$/, '');
+    return /\/tusupload$/i.test(withoutTrailingSlash)
+        ? withoutTrailingSlash
+        : `${withoutTrailingSlash}/tusupload`;
+}
+
+function getTusEndpoints(): string[] {
+    const configuredEndpoints = process.env.NEXT_PUBLIC_BUNNY_TUS_ENDPOINTS || process.env.NEXT_PUBLIC_BUNNY_TUS_ENDPOINT;
+    const parsedEndpoints = configuredEndpoints
+        ? configuredEndpoints.split(',').map(normalizeTusEndpoint).filter(Boolean)
+        : [];
+
+    if (!parsedEndpoints.includes(DEFAULT_TUS_ENDPOINT)) {
+        parsedEndpoints.push(DEFAULT_TUS_ENDPOINT);
+    }
+
+    return Array.from(new Set(parsedEndpoints));
+}
+
+function isDnsOrNetworkError(message: string): boolean {
+    const normalizedMessage = message.toLowerCase();
+    return (
+        normalizedMessage.includes('err_name_not_resolved') ||
+        normalizedMessage.includes('failed to fetch') ||
+        normalizedMessage.includes('network error') ||
+        normalizedMessage.includes('xhr poll error')
+    );
 }
 
 export function UploadProvider({ children }: { children: ReactNode }) {
@@ -78,10 +117,14 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         signature: string,
         expirationTime: number,
         durationSeconds: number,
+        endpoints: string[],
+        endpointIndex: number,
         onComplete?: (videoId: string, durationSeconds: number) => void,
     ): tus.Upload => {
+        const currentEndpoint = endpoints[endpointIndex] || DEFAULT_TUS_ENDPOINT;
+
         const upload = new tus.Upload(file, {
-            endpoint: 'https://video.bunnycdn.com/tusupload',
+            endpoint: currentEndpoint,
             // Longer retry delays — Bunny.net needs 2-5 min to release locks on large files
             retryDelays: [0, 5000, 10000, 30000, 60000, 90000, 120000],
             chunkSize: 20 * 1024 * 1024, // 20MB chunks — reduces lock contention on large files
@@ -116,8 +159,48 @@ export function UploadProvider({ children }: { children: ReactNode }) {
                 const rawErrorMsg = error?.message || 'حدث خطأ أثناء الرفع';
                 const isLocked = status === 423 || /locked/i.test(rawErrorMsg);
                 const isCancelled = rawErrorMsg.includes('abort') || rawErrorMsg.includes('cancel');
+                const hasNextEndpoint = endpointIndex < endpoints.length - 1;
+                const isNetworkIssue = !status && isDnsOrNetworkError(rawErrorMsg);
 
                 if (isCancelled) return;
+
+                if (isNetworkIssue && hasNextEndpoint) {
+                    const nextEndpointIndex = endpointIndex + 1;
+                    const nextEndpoint = endpoints[nextEndpointIndex];
+                    console.warn(`[TUS] Endpoint ${currentEndpoint} failed for ${lessonId}. Retrying via ${nextEndpoint}.`);
+
+                    const nextUpload = createTusUpload(
+                        lessonId,
+                        file,
+                        videoId,
+                        libraryId,
+                        signature,
+                        expirationTime,
+                        durationSeconds,
+                        endpoints,
+                        nextEndpointIndex,
+                        onComplete,
+                    );
+
+                    tusRefs.current[lessonId] = {
+                        upload: nextUpload,
+                        file,
+                        onComplete,
+                        videoId,
+                        durationSeconds,
+                        endpoints,
+                        endpointIndex: nextEndpointIndex,
+                    };
+
+                    setUploadState(lessonId, {
+                        status: 'uploading',
+                        errorMessage: `تعذر الوصول إلى خادم الرفع الحالي. تتم المحاولة عبر خادم بديل...`,
+                        canResume: true,
+                    });
+
+                    nextUpload.start();
+                    return;
+                }
 
                 if (isLocked) {
                     // Auto-resume after 30s for 423 Locked — server needs time to process
@@ -224,12 +307,16 @@ export function UploadProvider({ children }: { children: ReactNode }) {
             }
 
             const { videoId, libraryId, authorizationSignature, expirationTime } = responseData.data;
+            const tusEndpoints = getTusEndpoints();
 
             // 3. Create TUS upload
             const upload = createTusUpload(
                 lessonId, file, videoId, libraryId,
                 authorizationSignature, expirationTime,
-                durationSeconds, onComplete,
+                durationSeconds,
+                tusEndpoints,
+                0,
+                onComplete,
             );
 
             // Store reference for cancel/resume
@@ -239,6 +326,8 @@ export function UploadProvider({ children }: { children: ReactNode }) {
                 onComplete,
                 videoId,
                 durationSeconds,
+                endpoints: tusEndpoints,
+                endpointIndex: 0,
             };
 
             // 4. Start the upload for the current Bunny video object.

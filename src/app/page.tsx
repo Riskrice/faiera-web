@@ -376,7 +376,7 @@ export default function Home() {
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
                   duration={`${course.lessonsCount || 0} درس`}
-                  image={course.thumbnailUrl || '/placeholder.jpg'}
+                  image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
@@ -392,7 +392,7 @@ export default function Home() {
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
                   duration={`${course.lessonsCount || 0} درس`}
-                  image={course.thumbnailUrl || '/placeholder.jpg'}
+                  image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
@@ -425,7 +425,7 @@ export default function Home() {
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
                   duration={`${course.lessonsCount || 0} درس`}
-                  image={course.thumbnailUrl || '/placeholder.jpg'}
+                  image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
@@ -441,7 +441,7 @@ export default function Home() {
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
                   duration={`${course.lessonsCount || 0} درس`}
-                  image={course.thumbnailUrl || '/placeholder.jpg'}
+                  image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
                   priceLabel={formatPrice(course.price, course.currency)}
