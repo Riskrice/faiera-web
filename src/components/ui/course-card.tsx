@@ -43,7 +43,7 @@ export function CourseCard({ title, category, rating, duration, image, delay = 0
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay, duration: 0.5 }}
                 className={cn(
-                    "relative flex-shrink-0 w-[260px] sm:w-[280px] lg:w-[300px] h-[340px] sm:h-[360px] lg:h-[380px] rounded-[20px] sm:rounded-[26px] overflow-hidden cursor-pointer group border border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.14)] hover:shadow-[0_28px_80px_rgba(0,0,0,0.22)] hover:-translate-y-2 transition-all duration-300",
+                    "relative flex-shrink-0 w-full h-[340px] sm:h-[360px] lg:h-[380px] rounded-[20px] sm:rounded-[26px] overflow-hidden cursor-pointer group border border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.14)] hover:shadow-[0_28px_80px_rgba(0,0,0,0.22)] hover:-translate-y-2 transition-all duration-300",
                     className,
                 )}
             >
