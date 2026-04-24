@@ -8,7 +8,7 @@ import { NotificationDropdown } from './notification-dropdown';
 import { GlobalSearchCommand } from './global-search-command';
 import { Breadcrumbs } from './breadcrumbs';
 import { usePathname } from 'next/navigation';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 interface DashboardHeaderProps {
     sidebarCollapsed?: boolean;
@@ -62,7 +62,13 @@ export function DashboardHeader({
             </header>
 
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetContent side="right" className="p-0 w-[280px] sm:w-[320px] bg-background border-l border-border [&>button]:top-5 [&>button]:left-4 [&>button]:z-50 [&>button]:text-foreground/70 hover:[&>button]:text-foreground">
+                <SheetContent side="right" aria-describedby="sidebar-description" className="p-0 w-[280px] sm:w-[320px] bg-background border-l border-border [&>button]:top-5 [&>button]:left-4 [&>button]:z-50 [&>button]:text-foreground/70 hover:[&>button]:text-foreground">
+                    <div className="sr-only">
+                        <SheetTitle>القائمة الجانبية</SheetTitle>
+                        <SheetDescription id="sidebar-description">
+                            روابط التنقل الخاصة بلوحة التحكم
+                        </SheetDescription>
+                    </div>
                     <div className="h-full w-full [&>aside]:!flex [&>aside]:!static [&>aside]:!h-full [&>aside]:!w-full [&>aside]:!border-none [&>aside]:!bg-transparent">
                         <DashboardSidebar collapsed={false} />
                     </div>
