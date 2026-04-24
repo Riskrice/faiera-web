@@ -331,17 +331,17 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
 
             {/* Preview Dialog */}
             <Dialog open={showPreview} onOpenChange={setShowPreview}>
-                <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-[1280px] bg-black border-white/10 p-0 overflow-hidden shadow-2xl !block !border-none !ring-0 !gap-0">
-                    <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent flex flex-row items-center justify-between pointer-events-none">
-                        <DialogTitle className="text-white text-lg font-cairo">
+                <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-[1280px] bg-black border-white/10 p-0 overflow-hidden shadow-2xl !block !border-none !ring-0 !gap-0 [&>button]:hidden">
+                    <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent flex flex-row items-center justify-between pointer-events-none">
+                        <DialogTitle className="text-white text-lg font-cairo drop-shadow-md">
                             مقدمة الكورس
                         </DialogTitle>
                         <button
                             onClick={() => setShowPreview(false)}
-                            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer z-50 pointer-events-auto"
+                            className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer pointer-events-auto shadow-lg backdrop-blur-sm"
                         >
                             <span className="sr-only">إغلاق</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
                     </DialogHeader>
                     <div className="w-full relative bg-black p-0 m-0" style={{ paddingBottom: '56.25%' }}>
