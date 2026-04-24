@@ -250,7 +250,7 @@ export function ExploreContent({ isDashboard }: { isDashboard?: boolean }) {
                         {filteredCourses.length > 0 ? (
                             <div className="grid grid-cols-1 justify-items-stretch md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 xl:gap-7">
                                 {filteredCourses.map((course, index) => (
-                                    <div key={course.id} className="h-full w-full flex justify-center md:block">
+                                    <div key={course.id} className="h-full w-full flex justify-center">
                                         <CourseCard
                                             title={course.titleAr || course.titleEn}
                                             category={getCategoryLabel(course.category)}
@@ -260,7 +260,7 @@ export function ExploreContent({ isDashboard }: { isDashboard?: boolean }) {
                                             instructor={getCourseInstructorName(course)}
                                             delay={index * 0.05}
                                             courseId={course.id}
-                                            className="w-full max-w-none sm:max-w-[360px] md:max-w-none md:w-[280px] lg:w-[300px] h-[360px] sm:h-[400px] md:h-[360px] lg:h-[380px]"
+                                            className="w-full max-w-[360px] md:max-w-none h-[360px] sm:h-[400px] md:h-[360px] lg:h-[380px]"
                                         />
                                     </div>
                                 ))}
