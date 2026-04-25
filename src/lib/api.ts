@@ -209,24 +209,9 @@ class ApiClient {
     }
 
     private async maybeRefreshTokenBeforeRequest(endpoint: string, token: string): Promise<string> {
-        if (typeof window === 'undefined') {
-            return token;
-        }
-
-        if (!this.isTokenExpiredOrNearExpiry(token)) {
-            return token;
-        }
-
-        try {
-            console.log(`[ApiClient] Access token near expiry before ${endpoint}, attempting pre-request refresh...`);
-            const refreshedToken = await this.handleTokenRefresh();
-            this.setToken(refreshedToken);
-            return refreshedToken;
-        } catch (error) {
-            // Fall back to original token; existing 401 retry flow still applies.
-            console.warn(`[ApiClient] Pre-request refresh failed for ${endpoint}, continuing with current token.`, error);
-            return token;
-        }
+        // Pre-request refresh is disabled to prevent clock-skew loops.
+        // We rely entirely on the 401 interceptor for token rotation.
+        return token;
     }
 
     private getSessionSnapshot() {

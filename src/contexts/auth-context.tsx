@@ -106,25 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return message || fallbackMessage;
     };
 
-    const getTokenExpiry = (token: string) => {
-        try {
-            const [, payload] = token.split('.');
-            if (!payload) return null;
 
-            const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
-            const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
-            const parsedPayload = JSON.parse(atob(paddedPayload));
-
-            return typeof parsedPayload.exp === 'number' ? parsedPayload.exp * 1000 : null;
-        } catch {
-            return null;
-        }
-    };
-
-    const isTokenExpiredOrNearExpiry = (token: string, skewMs: number = 30000) => {
-        const expiry = getTokenExpiry(token);
-        return expiry !== null && expiry <= Date.now() + skewMs;
-    };
 
     const getCookieValue = (name: string): string | null => {
         if (typeof window === 'undefined') {
@@ -135,26 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return match?.[1] ?? null;
     };
 
-    const refreshSession = async (_refreshToken: string, storage: Storage, maxAge: number) => {
-        const refreshedAccessToken = await api.refreshAccessToken();
-        const latestRefreshToken =
-            storage.getItem('faiera_refresh_token') ||
-            localStorage.getItem('faiera_refresh_token') ||
-            sessionStorage.getItem('faiera_refresh_token') ||
-            getCookieValue('faiera_refresh');
 
-        setAccessToken(refreshedAccessToken);
-        api.setToken(refreshedAccessToken);
-        storage.setItem('faiera_backend_token', refreshedAccessToken);
-        if (latestRefreshToken) {
-            storage.setItem('faiera_refresh_token', latestRefreshToken);
-            document.cookie = `faiera_refresh=${latestRefreshToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
-        }
-        document.cookie = `faiera_session=${refreshedAccessToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
-
-        console.log('Token refreshed successfully');
-        return refreshedAccessToken;
-    };
 
     const checkAuth = async () => {
         let token = null;
@@ -188,21 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const storage = useLocalStorage ? localStorage : sessionStorage;
                 const maxAge = useLocalStorage ? 604800 : 86400;
 
-                if (!refreshToken && isTokenExpiredOrNearExpiry(token)) {
-                    console.warn('Session token found without refresh token and is expired; forcing logout.');
-                    logout();
-                    return;
-                }
-
                 if (refreshToken) {
                     storage.setItem('faiera_refresh_token', refreshToken);
                     document.cookie = `faiera_refresh=${refreshToken}; path=/; max-age=${maxAge}; Secure; SameSite=Lax`;
-                }
-
-                if (refreshToken && isTokenExpiredOrNearExpiry(token)) {
-                    console.log('Access token expired before profile fetch, attempting refresh...');
-                    token = await refreshSession(refreshToken, storage, maxAge);
-                    refreshToken = storage.getItem('faiera_refresh_token');
                 }
 
                 api.setToken(token);
@@ -214,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 try {
                     // Try fetch profile with current token
+                    // The API client's 401 interceptor will automatically handle token refresh if needed
                     const { data: userData } = await api.get<{ data: User }>('/auth/me');
                     if (userData) {
                         setUser(userData);
@@ -223,26 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         storage.setItem('faiera_user', JSON.stringify(userData));
                     }
                 } catch (error: unknown) {
-                    // If 401 and we have refresh token, try to refresh
-                    if (getErrorStatusCode(error) === 401 && refreshToken) {
-                        console.log('Token expired, attempting refresh...');
-                        try {
-                            token = await refreshSession(refreshToken, storage, maxAge);
-
-                            // Retry fetching profile
-                            const { data: userData } = await api.get<{ data: User }>('/auth/me');
-                            if (userData) {
-                                setUser(userData);
-                                storage.setItem('faiera_user', JSON.stringify(userData));
-                            }
-                        } catch (refreshError) {
-                            console.error('Session refresh failed:', refreshError);
-                            throw refreshError; // Trigger logout
-                        }
-                    } else {
-                        console.error('refresh token not found or invalid');
-                        throw error;
-                    }
+                    console.error('Session validation failed or refresh token invalid/missing');
+                    throw error;
                 }
             } else {
                 if (process.env.NODE_ENV !== 'production') {
