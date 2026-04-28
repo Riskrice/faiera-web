@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
     Search,
-    Filter,
     Plus,
 } from "lucide-react"
 import {
@@ -33,67 +32,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { QuestionFormValues, SubjectEnum, EducationalStageEnum } from "@/lib/schemas/question"
-
-// Mock Data (Reused for consistency)
-const MOCK_QUESTIONS: Partial<QuestionFormValues>[] = [
-    {
-        id: "Q-101",
-        text: "ما هو الفرق الرئيسي بين useMemo و useCallback في React؟",
-        type: "mcq",
-        difficulty: "hard",
-        taxonomy: "analyze",
-        tags: ["React", "Hooks", "Performance"],
-        subject: "computer_science",
-        grade: "university",
-        points: 5
-    },
-    {
-        id: "Q-102",
-        text: "يقوم القلب بضخ الدم إلى جميع أجزاء الجسم عبر الشرايين.",
-        type: "true_false",
-        difficulty: "easy",
-        taxonomy: "remember",
-        tags: ["Circulatory System", "Organs"],
-        subject: "biology",
-        grade: "secondary",
-        points: 1
-    },
-    {
-        id: "Q-103",
-        text: "احسب مساحة دائرة نصف قطرها 5 سم.",
-        type: "short_answer",
-        difficulty: "medium",
-        taxonomy: "apply",
-        tags: ["Geometry", "Math"],
-        subject: "math",
-        grade: "preparatory",
-        points: 3
-    },
-    {
-        id: "Q-104",
-        text: "أي من الوسوم التالية يستخدم لتعريف قائمة غير مرتبة؟",
-        type: "mcq",
-        difficulty: "easy",
-        taxonomy: "remember",
-        tags: ["HTML", "Semantics"],
-        grade: "secondary",
-        points: 2
-    },
-    {
-        id: "Q-105",
-        text: "اشرح مفهوم الـ Server-Side Rendering (SSR) ومميزاته.",
-        type: "short_answer",
-        difficulty: "expert",
-        taxonomy: "evaluate",
-        tags: ["Next.js", "Architecture"],
-        subject: "computer_science",
-        grade: "university",
-        points: 8
-    }
-]
-
-// Mock data removed
+import {
+    QuestionFormValues,
+    SubjectEnum,
+    EducationalStageEnum,
+    EDUCATIONAL_STAGE_LABELS,
+    SUBJECT_LABELS,
+} from "@/lib/schemas/question"
 
 interface QuestionPickerProps {
     open: boolean
@@ -127,7 +72,10 @@ export function QuestionPicker({ open, onOpenChange, onSelect }: QuestionPickerP
                 search: searchTerm,
                 subject: filterSubject,
                 grade: filterGrade,
-                limit: 50
+                page: 1,
+                pageSize: 100,
+                sortBy: 'createdAt',
+                sortOrder: 'DESC',
             })
             setQuestions(res.data)
         } catch (error) {
@@ -154,39 +102,11 @@ export function QuestionPicker({ open, onOpenChange, onSelect }: QuestionPickerP
     }
 
     const getSubjectLabel = (subject: string) => {
-        const labels: Record<string, string> = {
-            arabic: "اللغة العربية",
-            english: "اللغة الإنجليزية",
-            math: "الرياضيات",
-            science: "العلوم",
-            physics: "الفيزياء",
-            chemistry: "الكيمياء",
-            biology: "الأحياء",
-            history: "التاريخ",
-            geography: "الجغرافيا",
-            computer_science: "الحاسب الآلي"
-        }
-        return labels[subject] || subject
+        return SUBJECT_LABELS[subject as keyof typeof SUBJECT_LABELS] || subject
     }
 
     const getGradeLabel = (grade: string) => {
-        const labels: Record<string, string> = {
-            primary: "الابتدائية",
-            preparatory: "الإعدادية",
-            secondary: "الثانوية",
-            university: "الجامعية"
-        }
-        return labels[grade] || grade
-    }
-
-    const getDifficultyColor = (diff: string) => {
-        switch (diff) {
-            case 'easy': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-            case 'medium': return 'bg-blue-100 text-blue-700 border-blue-200'
-            case 'hard': return 'bg-amber-100 text-amber-700 border-amber-200'
-            case 'expert': return 'bg-purple-100 text-purple-700 border-purple-200'
-            default: return 'bg-gray-100 text-gray-700'
-        }
+        return EDUCATIONAL_STAGE_LABELS[grade as keyof typeof EDUCATIONAL_STAGE_LABELS] || grade
     }
 
     return (
@@ -261,7 +181,7 @@ export function QuestionPicker({ open, onOpenChange, onSelect }: QuestionPickerP
                                     </TableHead>
                                     <TableHead className="text-right">نص السؤال</TableHead>
                                     <TableHead className="text-right">المادة</TableHead>
-                                    <TableHead className="text-right">المستوى</TableHead>
+                                    <TableHead className="text-right">المرحلة</TableHead>
                                     <TableHead className="text-right">النوع</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -296,8 +216,8 @@ export function QuestionPicker({ open, onOpenChange, onSelect }: QuestionPickerP
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="outline" className={`border ${getDifficultyColor(q.difficulty || "")}`}>
-                                                {q.difficulty}
+                                            <Badge variant="outline" className="font-normal">
+                                                {getGradeLabel(q.grade || "")}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground">

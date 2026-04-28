@@ -13,17 +13,32 @@ export const BloomTaxonomyEnum = z.enum([
 
 export const QuestionTypeEnum = z.enum([
     "mcq", // اختيار من متعدد
+    "mcq_multi", // اختيار من متعدد (متعدد الإجابات)
     "true_false", // صح أو خطأ
+    "fill_blank", // أكمل الفراغ
+    "matching", // توصيل
+    "ordering", // ترتيب
     "short_answer", // إجابة قصيرة
-    "code" // كود برمجي
+    "essay" // مقالي
 ])
 
 export const EducationalStageEnum = z.enum([
-    "primary", // الابتدائية
-    "preparatory", // الإعدادية
-    "secondary", // الثانوية
-    "university" // الجامعية
+    "grade_1",
+    "grade_2",
+    "grade_3",
+    "grade_10",
+    "grade_11",
+    "grade_12"
 ])
+
+export const EDUCATIONAL_STAGE_LABELS: Record<z.infer<typeof EducationalStageEnum>, string> = {
+    grade_1: "الصف الأول الإعدادي",
+    grade_2: "الصف الثاني الإعدادي",
+    grade_3: "الصف الثالث الإعدادي",
+    grade_10: "الصف الأول الثانوي",
+    grade_11: "الصف الثاني الثانوي",
+    grade_12: "الصف الثالث الثانوي"
+}
 
 export const SubjectEnum = z.enum([
     "arabic", // اللغة العربية
@@ -37,6 +52,19 @@ export const SubjectEnum = z.enum([
     "geography", // الجغرافيا
     "computer_science" // الحاسب الآلي
 ])
+
+export const SUBJECT_LABELS: Record<z.infer<typeof SubjectEnum>, string> = {
+    arabic: "اللغة العربية",
+    english: "اللغة الإنجليزية",
+    math: "الرياضيات",
+    science: "العلوم",
+    physics: "الفيزياء",
+    chemistry: "الكيمياء",
+    biology: "الأحياء",
+    history: "التاريخ",
+    geography: "الجغرافيا",
+    computer_science: "الحاسب الآلي"
+}
 
 // 2. Answer Schema (relaxed for draft saving)
 const AnswerSchema = z.object({
@@ -52,8 +80,8 @@ export const questionSchema = z.object({
 
     // Core Content
     text: z.string().min(5, "نص السؤال قصير جداً"),
-    subject: SubjectEnum.optional(), // New field
-    grade: EducationalStageEnum.optional(), // New field
+    subject: SubjectEnum,
+    grade: EducationalStageEnum,
     description: z.string().optional(),
 
     // Methodology & Metadata

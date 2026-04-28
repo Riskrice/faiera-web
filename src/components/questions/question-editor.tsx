@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
     Select,
@@ -22,28 +21,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
 import {
     Plus,
     Trash2,
     Check,
-    HelpCircle,
-    Copy,
     Save,
-    Tag,
     AlertCircle,
-    AlignLeft,
     ListChecks,
     Target,
     BookOpen,
-    GraduationCap, // New Icon
-    Book // New Icon
+    GraduationCap,
 } from "lucide-react"
 import {
     Form,
     FormControl,
-    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -54,10 +45,11 @@ import {
     QuestionFormValues,
     QuestionTypeEnum,
     DifficultyEnum,
-    BloomTaxonomyEnum,
-    EducationalStageEnum, // New
-    SubjectEnum, // New
-    defaultQuestionValues
+    EducationalStageEnum,
+    SubjectEnum,
+    defaultQuestionValues,
+    EDUCATIONAL_STAGE_LABELS,
+    SUBJECT_LABELS,
 } from "@/lib/schemas/question"
 import { cn } from "@/lib/utils"
 
@@ -101,20 +93,6 @@ export function QuestionEditor({
     const onSubmit = (data: QuestionFormValues) => {
         onSave(data)
         onOpenChange(false)
-    }
-
-    // Helper for Bloom's Taxonomy Labels
-    // FIXED: Removed English labels as requested
-    const getTaxonomyLabel = (level: string) => {
-        const map: Record<string, string> = {
-            remember: "تذكر",
-            understand: "فهم",
-            apply: "تطبيق",
-            analyze: "تحليل",
-            evaluate: "تقييم",
-            create: "ابتكار"
-        }
-        return map[level] || level
     }
 
     return (
@@ -173,15 +151,7 @@ export function QuestionEditor({
                                                             <SelectContent>
                                                                 {EducationalStageEnum.options.map((option) => (
                                                                     <SelectItem key={option} value={option} className="cursor-pointer focus:bg-indigo-50 focus:text-indigo-700">
-                                                                        {(() => {
-                                                                            const labels: Record<string, string> = {
-                                                                                primary: "المرحلة الابتدائية",
-                                                                                preparatory: "المرحلة الإعدادية",
-                                                                                secondary: "المرحلة الثانوية",
-                                                                                university: "المرحلة الجامعية"
-                                                                            }
-                                                                            return labels[option] || option
-                                                                        })()}
+                                                                        {EDUCATIONAL_STAGE_LABELS[option]}
                                                                     </SelectItem>
                                                                 ))}
                                                             </SelectContent>
@@ -206,21 +176,7 @@ export function QuestionEditor({
                                                             <SelectContent>
                                                                 {SubjectEnum.options.map((option) => (
                                                                     <SelectItem key={option} value={option} className="cursor-pointer focus:bg-indigo-50 focus:text-indigo-700">
-                                                                        {(() => {
-                                                                            const labels: Record<string, string> = {
-                                                                                arabic: "اللغة العربية",
-                                                                                english: "اللغة الإنجليزية",
-                                                                                math: "الرياضيات",
-                                                                                science: "العلوم",
-                                                                                physics: "الفيزياء",
-                                                                                chemistry: "الكيمياء",
-                                                                                biology: "الأحياء",
-                                                                                history: "التاريخ",
-                                                                                geography: "الجغرافيا",
-                                                                                computer_science: "الحاسب الآلي"
-                                                                            }
-                                                                            return labels[option] || option
-                                                                        })()}
+                                                                        {SUBJECT_LABELS[option]}
                                                                     </SelectItem>
                                                                 ))}
                                                             </SelectContent>
@@ -325,7 +281,7 @@ export function QuestionEditor({
                                         <span>إجابات السؤال</span>
                                     </div>
 
-                                    {questionType === "mcq" && (
+                                    {(questionType === "mcq" || questionType === "mcq_multi") && (
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -340,7 +296,7 @@ export function QuestionEditor({
 
                                 <div className="bg-white p-1 rounded-xl">
                                     {/* MCQ Layout */}
-                                    {questionType === "mcq" && (
+                                    {(questionType === "mcq" || questionType === "mcq_multi") && (
                                         <div className="space-y-2">
                                             {answers.map((answer, index) => (
                                                 <div key={answer.id} className="flex items-center gap-3 group p-2 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
@@ -353,11 +309,14 @@ export function QuestionEditor({
                                                                     <FormControl>
                                                                         <div className="relative flex items-center justify-center w-6 h-6">
                                                                             <input
-                                                                                type="radio"
+                                                                                type={questionType === "mcq_multi" ? "checkbox" : "radio"}
                                                                                 className="peer appearance-none w-5 h-5 border-2 border-slate-300 rounded-full checked:border-emerald-500 checked:bg-emerald-500 cursor-pointer transition-all"
                                                                                 checked={field.value}
                                                                                 onChange={() => {
-                                                                                    // Reset others and set this one
+                                                                                    if (questionType === "mcq_multi") {
+                                                                                        form.setValue(`answers.${index}.isCorrect`, !field.value)
+                                                                                        return
+                                                                                    }
                                                                                     answers.forEach((_, i) => form.setValue(`answers.${i}.isCorrect`, i === index))
                                                                                 }}
                                                                             />
@@ -422,12 +381,14 @@ export function QuestionEditor({
                                                     onClick={() => {
                                                         if (answers.length < 2) {
                                                             form.setValue("answers", [
-                                                                { id: "1", text: "صحيح", isCorrect: val === "true" },
-                                                                { id: "2", text: "خاطأ", isCorrect: val === "false" }
+                                                                { id: "true", text: "صحيح", isCorrect: val === "true" },
+                                                                { id: "false", text: "خاطأ", isCorrect: val === "false" }
                                                             ])
                                                         } else {
+                                                            form.setValue(`answers.0.id`, "true")
                                                             form.setValue(`answers.0.text`, "صحيح")
                                                             form.setValue(`answers.0.isCorrect`, val === "true")
+                                                            form.setValue(`answers.1.id`, "false")
                                                             form.setValue(`answers.1.text`, "خاطأ")
                                                             form.setValue(`answers.1.isCorrect`, val === "false")
                                                         }
@@ -462,8 +423,8 @@ export function QuestionEditor({
                                         </div>
                                     )}
 
-                                    {/* Short Answer / Code Layout */}
-                                    {(questionType === "short_answer" || questionType === "code") && (
+                                    {/* Manual Answer Layout */}
+                                    {(questionType === "short_answer" || questionType === "essay") && (
                                         <div className="bg-amber-50/50 p-6 rounded-xl border border-amber-100 border-dashed text-center space-y-4">
                                             <div className="p-3 bg-amber-100/50 rounded-full w-fit mx-auto">
                                                 <Target className="w-6 h-6 text-amber-600" />

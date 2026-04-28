@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
     Table,
     TableBody,
@@ -12,16 +12,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
     Search,
     MoreHorizontal,
     Plus,
-    Filter,
     ArrowUpDown,
-    BrainCircuit,
-    Layers,
-    Code,
-    Loader2
 } from "lucide-react"
 import {
     DropdownMenu,
@@ -45,71 +42,203 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { QuestionFormValues, SubjectEnum, EducationalStageEnum } from "@/lib/schemas/question"
+import {
+    QuestionFormValues,
+    SubjectEnum,
+    EducationalStageEnum,
+    EDUCATIONAL_STAGE_LABELS,
+    SUBJECT_LABELS,
+} from "@/lib/schemas/question"
 import { QuestionEditor } from "@/components/questions/question-editor"
 import { useAuth } from "@/contexts/auth-context"
+import { createQuestion, deleteQuestion, getQuestionFacets, getQuestions, Question, updateQuestion } from "@/lib/api"
 import { toast } from "sonner"
+
+interface QuestionRow {
+    id: string
+    text: string
+    type: string
+    difficulty: string
+    taxonomy: string
+    subject?: string
+    grade?: string
+    tags: string[]
+    answers?: QuestionFormValues["answers"]
+    points?: number
+    usageCount?: number
+    correctRate?: number
+    createdAt?: string
+}
+
+interface FacetItem {
+    value: string
+    count: number
+}
+
+interface QuestionFacetsState {
+    types: FacetItem[]
+    difficulties: FacetItem[]
+    cognitiveLevels: FacetItem[]
+    statuses: FacetItem[]
+    grades: FacetItem[]
+    subjects: FacetItem[]
+    topics: FacetItem[]
+    subtopics: FacetItem[]
+}
+
+const EMPTY_FACETS: QuestionFacetsState = {
+    types: [],
+    difficulties: [],
+    cognitiveLevels: [],
+    statuses: [],
+    grades: [],
+    subjects: [],
+    topics: [],
+    subtopics: [],
+}
 
 export default function QuestionBankPage() {
     const { accessToken } = useAuth()
+    const [searchInput, setSearchInput] = useState("")
     const [searchTerm, setSearchTerm] = useState("")
     const [filterType, setFilterType] = useState<string>("all")
     const [filterDifficulty, setFilterDifficulty] = useState<string>("all")
     const [filterSubject, setFilterSubject] = useState<string>("all")
     const [filterGrade, setFilterGrade] = useState<string>("all")
+    const [sortBy, setSortBy] = useState<"createdAt" | "difficulty" | "usageCount" | "correctRate" | "avgTimeSeconds" | "points">("createdAt")
+    const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("DESC")
 
-    // Core Data State
-    const [questions, setQuestions] = useState<Partial<QuestionFormValues>[]>([])
+    const [questions, setQuestions] = useState<QuestionRow[]>([])
+    const [facets, setFacets] = useState<QuestionFacetsState>(EMPTY_FACETS)
     const [loading, setLoading] = useState(true)
+    const [facetsLoading, setFacetsLoading] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
+    const [page, setPage] = useState(1)
+    const [pageSize, setPageSize] = useState(50)
+    const [total, setTotal] = useState(0)
+    const [totalPages, setTotalPages] = useState(1)
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"
-
-    // Fetch questions from API
     useEffect(() => {
-        const fetchQuestions = async () => {
-            if (!accessToken) {
-                setLoading(false)
-                return
-            }
+        const timer = setTimeout(() => {
+            setSearchTerm(searchInput.trim())
+            setPage(1)
+        }, 350)
 
-            try {
-                const response = await fetch(`${apiUrl}/questions`, {
-                    headers: {
-                        "Authorization": `Bearer ${accessToken}`,
-                        "Content-Type": "application/json",
-                    },
-                })
+        return () => clearTimeout(timer)
+    }, [searchInput])
 
-                if (response.ok) {
-                    const data = await response.json()
-                    if (data.data) {
-                        // Map backend response to frontend format
-                        const mappedQuestions = data.data.map((q: any) => ({
-                            id: q.id,
-                            text: q.questionAr || q.questionEn || q.text || "نص السؤال غير متوفر",
-                            type: q.type,
-                            difficulty: q.difficulty,
-                            taxonomy: q.taxonomy,
-                            tags: q.tags || [],
-                            subject: q.subject,
-                            grade: q.grade,
-                            points: q.points,
-                        }))
-                        setQuestions(mappedQuestions)
-                    }
-                } else {
-                    toast.error("فشل في تحميل الأسئلة")
-                }
-            } catch (error) {
-                console.error("Failed to fetch questions:", error)
-                toast.error("فشل في الاتصال بالخادم")
-            } finally {
-                setLoading(false)
-            }
+    const queryParams = useMemo(
+        () => ({
+            search: searchTerm || undefined,
+            type: filterType,
+            difficulty: filterDifficulty,
+            subject: filterSubject,
+            grade: filterGrade,
+            sortBy,
+            sortOrder,
+            page,
+            pageSize,
+        }),
+        [searchTerm, filterType, filterDifficulty, filterSubject, filterGrade, sortBy, sortOrder, page, pageSize],
+    )
+
+    const mapQuestionAnswers = (q: Question): QuestionFormValues["answers"] | undefined => {
+        if (Array.isArray(q.answerData)) {
+            return q.answerData.map((answer: any) => ({
+                id: String(answer.id ?? crypto.randomUUID()),
+                text: String(answer.textAr || answer.textEn || answer.text || ""),
+                isCorrect: Boolean(answer.isCorrect),
+                explanation: answer.explanation,
+            }))
         }
 
-        fetchQuestions()
-    }, [accessToken, apiUrl])
+        if (q.type === "true_false") {
+            return [
+                { id: "true", text: "صحيح", isCorrect: q.correctAnswer === true },
+                { id: "false", text: "خاطأ", isCorrect: q.correctAnswer === false },
+            ]
+        }
+
+        const answers = (q.answerData as any)?.answers
+        if (Array.isArray(answers)) {
+            return answers.map((answer: any) => ({
+                id: String(answer.id ?? crypto.randomUUID()),
+                text: String(answer.text || answer.textAr || answer.textEn || ""),
+                isCorrect: Boolean(answer.isCorrect),
+                explanation: answer.explanation,
+            }))
+        }
+
+        return undefined
+    }
+
+    const mapQuestion = (q: Question): QuestionRow => ({
+        id: q.id,
+        text: q.questionAr || q.questionEn || q.text || "نص السؤال غير متوفر",
+        type: q.type || "-",
+        difficulty: q.difficulty || "medium",
+        taxonomy: q.cognitiveLevel || q.taxonomy || "understand",
+        tags: q.tags || [],
+        subject: q.subject,
+        grade: q.grade,
+        points: q.points,
+        usageCount: q.usageCount,
+        correctRate: q.correctRate,
+        createdAt: q.createdAt,
+        answers: mapQuestionAnswers(q),
+    })
+
+    const fetchQuestionsAndFacets = async () => {
+        if (!accessToken) {
+            setLoading(false)
+            return
+        }
+
+        try {
+            setLoading(true)
+            setFacetsLoading(true)
+            setErrorMessage(null)
+
+            const [questionsResponse, facetsResponse] = await Promise.all([
+                getQuestions(queryParams),
+                getQuestionFacets({
+                    search: queryParams.search,
+                    type: queryParams.type,
+                    difficulty: queryParams.difficulty,
+                    subject: queryParams.subject,
+                    grade: queryParams.grade,
+                }),
+            ])
+
+            const mappedQuestions = (questionsResponse.data || []).map(mapQuestion)
+            setQuestions(mappedQuestions)
+
+            const pagination = questionsResponse.pagination || questionsResponse.meta || {}
+            const nextTotal = Number(pagination.total || 0)
+            const nextPageSize = Number(pagination.pageSize || pageSize)
+            const nextPage = Number(pagination.page || page)
+            const nextTotalPages = Number(
+                pagination.totalPages || (nextPageSize > 0 ? Math.max(1, Math.ceil(nextTotal / nextPageSize)) : 1),
+            )
+
+            setTotal(nextTotal)
+            setTotalPages(nextTotalPages)
+            setPage(nextPage)
+            setFacets(facetsResponse.data || EMPTY_FACETS)
+        } catch (error) {
+            console.error("Failed to fetch question bank data:", error)
+            setErrorMessage("تعذر تحميل بنك الأسئلة. حاول مرة أخرى.")
+            toast.error("فشل في تحميل بيانات بنك الأسئلة")
+        } finally {
+            setLoading(false)
+            setFacetsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchQuestionsAndFacets()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [accessToken, queryParams])
 
     // Editor State
     const [isEditorOpen, setIsEditorOpen] = useState(false)
@@ -128,69 +257,41 @@ export default function QuestionBankPage() {
                 questionEn: data.text, // Fallback for now since UI is single lang
                 type: data.type,
                 difficulty: data.difficulty,
-                grade: data.grade || 'primary', // Default if missing
-                subject: data.subject || 'general', // Default if missing
+                cognitiveLevel: data.taxonomy,
+                grade: data.grade,
+                subject: data.subject,
                 tags: data.tags || [],
                 points: data.points,
             }
 
-            // Map answers to options if MCQ
-            if (data.type === 'mcq' && data.answers?.length) {
-                payload.options = data.answers.map(a => ({
+            if (data.type === 'mcq' || data.type === 'mcq_multi') {
+                payload.options = (data.answers || []).map(a => ({
                     id: a.id,
                     textAr: a.text || ' ', // Ensure not empty
                     textEn: a.text || ' ',
                     isCorrect: a.isCorrect
                 }))
+            } else if (data.type === 'true_false') {
+                payload.correctAnswer = data.answers?.find(a => a.isCorrect)?.id === "true"
             } else if (data.answers?.length) {
                 // For True/False or others using answers array but different backend structure if needed
                 // For now, mapping to options handles most cases or answerData
                 payload.answerData = { answers: data.answers }
             }
 
-            // Determine URL and Method
-            const url = editingQuestion
-                ? `${apiUrl}/questions/${editingQuestion.id}`
-                : `${apiUrl}/questions`;
-            const method = editingQuestion ? 'PUT' : 'POST';
-
-            console.log("Sending payload:", payload);
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            })
-
-            const responseText = await response.text();
-            let result;
-            try {
-                result = responseText ? JSON.parse(responseText) : {};
-            } catch (e) {
-                console.error("Failed to parse error response:", responseText);
-                result = { message: `Server Error: ${response.status} ${response.statusText}` };
-            }
-
-            if (response.ok) {
-                const savedQuestion = { ...data, id: result.data?.id || result.id || (editingQuestion ? editingQuestion.id : undefined) }
-                if (method === 'POST') {
-                    setQuestions(prev => [savedQuestion, ...prev])
-                    toast.success("تم إضافة السؤال بنجاح")
-                } else {
-                    setQuestions(prev => prev.map(q => q.id === savedQuestion.id ? savedQuestion : q))
-                    toast.success("تم تعديل السؤال بنجاح")
-                }
-
-                setIsEditorOpen(false)
-                setEditingQuestion(null)
+            if (editingQuestion?.id) {
+                await updateQuestion(editingQuestion.id, payload)
+                toast.success("تم تعديل السؤال بنجاح")
             } else {
-                console.error("Creation error details:", result);
-                const msg = Array.isArray(result.message) ? result.message[0] : (result.message || "فشل إضافة السؤال");
-                toast.error(msg);
+                await createQuestion(payload)
+                toast.success("تم إضافة السؤال بنجاح")
             }
+
+            if (!editingQuestion?.id) {
+                setPage(1)
+            }
+
+            await fetchQuestionsAndFacets()
 
             setIsEditorOpen(false)
             setEditingQuestion(null)
@@ -218,19 +319,14 @@ export default function QuestionBankPage() {
         if (!deleteId || !accessToken) return
 
         try {
-            const response = await fetch(`${apiUrl}/questions/${deleteId}`, {
-                method: 'DELETE',
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                },
-            })
+            await deleteQuestion(deleteId)
+            toast.success("تم حذف السؤال بنجاح")
 
-            if (response.ok) {
-                setQuestions(prev => prev.filter(q => q.id !== deleteId))
-                toast.success("تم حذف السؤال بنجاح")
+            const shouldGoPreviousPage = questions.length === 1 && page > 1
+            if (shouldGoPreviousPage) {
+                setPage(prev => prev - 1)
             } else {
-                const error = await response.json()
-                toast.error(error.message || "فشل حذف السؤال")
+                await fetchQuestionsAndFacets()
             }
         } catch (error) {
             console.error("Error deleting question:", error)
@@ -240,20 +336,16 @@ export default function QuestionBankPage() {
         }
     }
 
-
-
-    // Simple Filtering Logic
-    const filteredQuestions = questions.filter(q => {
-        const matchesSearch = q.text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            q.tags?.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
-
-        const matchesType = filterType === "all" || q.type === filterType
-        const matchesDifficulty = filterDifficulty === "all" || q.difficulty === filterDifficulty
-        const matchesSubject = filterSubject === "all" || q.subject === filterSubject
-        const matchesGrade = filterGrade === "all" || q.grade === filterGrade
-
-        return matchesSearch && matchesType && matchesDifficulty && matchesSubject && matchesGrade
-    })
+    const clearFilters = () => {
+        setSearchInput("")
+        setFilterType("all")
+        setFilterDifficulty("all")
+        setFilterSubject("all")
+        setFilterGrade("all")
+        setSortBy("createdAt")
+        setSortOrder("DESC")
+        setPage(1)
+    }
 
     const getDifficultyColor = (diff: string) => {
         switch (diff) {
@@ -290,51 +382,61 @@ export default function QuestionBankPage() {
     const getTypeLabel = (type: string) => {
         const map: Record<string, string> = {
             mcq: "اختيار من متعدد",
+            mcq_multi: "اختيار متعدد الإجابات",
             true_false: "صح أو خطأ",
-            short_answer: "إجابة قصيرة"
+            fill_blank: "أكمل الفراغ",
+            matching: "توصيل",
+            ordering: "ترتيب",
+            short_answer: "إجابة قصيرة",
+            essay: "مقالي"
         }
         return map[type] || type
     }
 
     const getSubjectLabel = (subject: string) => {
-        const labels: Record<string, string> = {
-            arabic: "اللغة العربية",
-            english: "اللغة الإنجليزية",
-            math: "الرياضيات",
-            science: "العلوم",
-            physics: "الفيزياء",
-            chemistry: "الكيمياء",
-            biology: "الأحياء",
-            history: "التاريخ",
-            geography: "الجغرافيا",
-            computer_science: "الحاسب الآلي"
-        }
-        return labels[subject] || subject
+        return SUBJECT_LABELS[subject as keyof typeof SUBJECT_LABELS] || subject
     }
 
     const getGradeLabel = (grade: string) => {
-        const labels: Record<string, string> = {
-            primary: "الابتدائية",
-            preparatory: "الإعدادية",
-            secondary: "الثانوية",
-            university: "الجامعية"
-        }
-        return labels[grade] || grade
+        return EDUCATIONAL_STAGE_LABELS[grade as keyof typeof EDUCATIONAL_STAGE_LABELS] || grade
     }
 
-    const getTaxonomyIcon = (tax: string) => {
-        switch (tax) {
-            case 'remember': return <Layers className="w-3 h-3" />
-            case 'create': return <BrainCircuit className="w-3 h-3" />
-            case 'analyze': return <Code className="w-3 h-3" />
-            default: return null
-        }
+    const getTypeCount = (value: string) => facets.types.find(item => item.value === value)?.count
+
+    const getDifficultyCount = (value: string) =>
+        facets.difficulties.find(item => item.value === value)?.count
+
+    const getSubjectCount = (value: string) => facets.subjects.find(item => item.value === value)?.count
+
+    const getGradeCount = (value: string) => facets.grades.find(item => item.value === value)?.count
+
+    const formatCountLabel = (count?: number) => (typeof count === "number" ? ` (${count})` : "")
+
+    const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1
+    const endItem = total === 0 ? 0 : Math.min(page * pageSize, total)
+
+    const canGoPrev = page > 1
+    const canGoNext = page < totalPages
+
+    const handlePageSizeChange = (value: string) => {
+        const nextSize = Number(value)
+        if (Number.isNaN(nextSize)) return
+        setPageSize(nextSize)
+        setPage(1)
     }
 
     if (loading) {
         return (
-            <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="flex-1 space-y-6" aria-busy="true" aria-live="polite">
+                <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                        <Skeleton className="h-8 w-44" />
+                        <Skeleton className="h-4 w-72" />
+                    </div>
+                    <Skeleton className="h-10 w-40" />
+                </div>
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-[420px] w-full" />
             </div>
         )
     }
@@ -352,6 +454,17 @@ export default function QuestionBankPage() {
                 </Button>
             </div>
 
+            {errorMessage ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4" role="alert" aria-live="assertive">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-sm text-destructive">{errorMessage}</p>
+                        <Button variant="outline" size="sm" onClick={fetchQuestionsAndFacets}>
+                            إعادة المحاولة
+                        </Button>
+                    </div>
+                </div>
+            ) : null}
+
             {/* Filters Bar */}
             <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-lg border shadow-sm">
                 <div className="relative flex-1">
@@ -359,62 +472,127 @@ export default function QuestionBankPage() {
                     <Input
                         placeholder="بحث في نص السؤال أو الوسوم..."
                         className="pr-9"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
                     />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Select value={filterSubject} onValueChange={setFilterSubject}>
+                    <Select value={filterSubject} onValueChange={(value) => {
+                        setFilterSubject(value)
+                        setPage(1)
+                    }}>
                         <SelectTrigger className="w-[160px]">
                             <SelectValue placeholder="المادة" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">كل المواد</SelectItem>
                             {SubjectEnum.options.map(opt => (
-                                <SelectItem key={opt} value={opt}>{getSubjectLabel(opt)}</SelectItem>
+                                <SelectItem key={opt} value={opt}>
+                                    {getSubjectLabel(opt)}{formatCountLabel(getSubjectCount(opt))}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterGrade} onValueChange={setFilterGrade}>
+                    <Select value={filterGrade} onValueChange={(value) => {
+                        setFilterGrade(value)
+                        setPage(1)
+                    }}>
                         <SelectTrigger className="w-[160px]">
                             <SelectValue placeholder="المرحلة" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">كل المراحل</SelectItem>
                             {EducationalStageEnum.options.map(opt => (
-                                <SelectItem key={opt} value={opt}>{getGradeLabel(opt)}</SelectItem>
+                                <SelectItem key={opt} value={opt}>
+                                    {getGradeLabel(opt)}{formatCountLabel(getGradeCount(opt))}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Select value={filterType} onValueChange={setFilterType}>
+                    <Select value={filterType} onValueChange={(value) => {
+                        setFilterType(value)
+                        setPage(1)
+                    }}>
                         <SelectTrigger className="w-[180px]">
                             <SelectValue placeholder="نوع السؤال" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">جميع الأنواع</SelectItem>
-                            <SelectItem value="mcq">اختيار من متعدد</SelectItem>
-                            <SelectItem value="true_false">صح أو خطأ</SelectItem>
-                            <SelectItem value="short_answer">إجابة قصيرة</SelectItem>
+                            <SelectItem value="mcq">اختيار من متعدد{formatCountLabel(getTypeCount("mcq"))}</SelectItem>
+                            <SelectItem value="mcq_multi">اختيار متعدد الإجابات{formatCountLabel(getTypeCount("mcq_multi"))}</SelectItem>
+                            <SelectItem value="true_false">صح أو خطأ{formatCountLabel(getTypeCount("true_false"))}</SelectItem>
+                            <SelectItem value="fill_blank">أكمل الفراغ{formatCountLabel(getTypeCount("fill_blank"))}</SelectItem>
+                            <SelectItem value="matching">توصيل{formatCountLabel(getTypeCount("matching"))}</SelectItem>
+                            <SelectItem value="ordering">ترتيب{formatCountLabel(getTypeCount("ordering"))}</SelectItem>
+                            <SelectItem value="short_answer">إجابة قصيرة{formatCountLabel(getTypeCount("short_answer"))}</SelectItem>
+                            <SelectItem value="essay">مقالي{formatCountLabel(getTypeCount("essay"))}</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
+                    <Select value={filterDifficulty} onValueChange={(value) => {
+                        setFilterDifficulty(value)
+                        setPage(1)
+                    }}>
                         <SelectTrigger className="w-[180px]">
                             <SelectValue placeholder="الصعوبة" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">كل المستويات</SelectItem>
-                            <SelectItem value="easy">سهل</SelectItem>
-                            <SelectItem value="medium">متوسط</SelectItem>
-                            <SelectItem value="hard">صعب</SelectItem>
-                            <SelectItem value="expert">خبير</SelectItem>
+                            <SelectItem value="easy">سهل{formatCountLabel(getDifficultyCount("easy"))}</SelectItem>
+                            <SelectItem value="medium">متوسط{formatCountLabel(getDifficultyCount("medium"))}</SelectItem>
+                            <SelectItem value="hard">صعب{formatCountLabel(getDifficultyCount("hard"))}</SelectItem>
+                            <SelectItem value="expert">خبير{formatCountLabel(getDifficultyCount("expert"))}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="ترتيب حسب" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="createdAt">الأحدث</SelectItem>
+                            <SelectItem value="difficulty">الصعوبة</SelectItem>
+                            <SelectItem value="usageCount">الأكثر استخدامًا</SelectItem>
+                            <SelectItem value="correctRate">نسبة الصحة</SelectItem>
+                            <SelectItem value="avgTimeSeconds">الوقت المتوسط</SelectItem>
+                            <SelectItem value="points">الدرجات</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => {
+                            setSortOrder(prev => (prev === "ASC" ? "DESC" : "ASC"))
+                            setPage(1)
+                        }}
+                    >
+                        <ArrowUpDown className="h-4 w-4" />
+                        {sortOrder === "ASC" ? "تصاعدي" : "تنازلي"}
+                    </Button>
+                    <Button variant="ghost" onClick={clearFilters}>إعادة ضبط</Button>
+                </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground bg-card border rounded-lg px-4 py-3">
+                <div>
+                    عرض {startItem}-{endItem} من أصل {total} سؤال
+                </div>
+                <div className="flex items-center gap-2">
+                    <span>حجم الصفحة</span>
+                    <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+                        <SelectTrigger className="w-[96px] h-8">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
             </div>
 
-            {/* Questions Table */}
-            <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+            {/* Questions Table (Desktop) */}
+            <div className="hidden md:block bg-card rounded-lg border shadow-sm overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -424,11 +602,14 @@ export default function QuestionBankPage() {
                             <TableHead className="text-right">المرحلة</TableHead>
                             <TableHead className="text-right">الصعوبة</TableHead>
                             <TableHead className="text-right">النوع</TableHead>
+                            <TableHead className="text-right">التصنيف</TableHead>
+                            <TableHead className="text-right">معدل الصحة</TableHead>
+                            <TableHead className="text-right">الاستخدام</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredQuestions.length > 0 ? filteredQuestions.map((q) => (
+                        {questions.length > 0 ? questions.map((q) => (
                             <TableRow key={q.id}>
                                 <TableCell className="font-mono text-xs text-muted-foreground">{q.id}</TableCell>
                                 <TableCell>
@@ -468,9 +649,20 @@ export default function QuestionBankPage() {
                                     <span className="text-sm text-muted-foreground">{getTypeLabel(q.type as string)}</span>
                                 </TableCell>
                                 <TableCell>
+                                    <Badge variant="secondary" className="font-normal">
+                                        {getTaxonomyLabel(q.taxonomy || "understand")}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-600">
+                                    {typeof q.correctRate === "number" ? `${q.correctRate}%` : "-"}
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-600">
+                                    {typeof q.usageCount === "number" ? q.usageCount : "-"}
+                                </TableCell>
+                                <TableCell>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                            <Button variant="ghost" className="h-8 w-8 p-0" aria-label={`إجراءات السؤال ${q.id}`}>
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
@@ -485,14 +677,94 @@ export default function QuestionBankPage() {
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                                    لا توجد أسئلة تطابق البحث.
+                                <TableCell colSpan={10} className="h-24">
+                                    <EmptyState
+                                        icon={Search}
+                                        title="لا توجد أسئلة مطابقة"
+                                        description="جرّب تعديل معايير البحث أو إعادة ضبط الفلاتر لعرض نتائج أكثر."
+                                        action={<Button variant="outline" size="sm" onClick={clearFilters}>إعادة ضبط الفلاتر</Button>}
+                                        className="py-2"
+                                    />
                                 </TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Questions Cards (Mobile) */}
+            <div className="md:hidden space-y-3">
+                {questions.length > 0 ? questions.map((q) => (
+                    <div key={q.id} className="rounded-lg border bg-card p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-2 min-w-0">
+                                <p className="font-medium leading-6 break-words">{q.text}</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {q.tags?.map(tag => (
+                                        <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0.5 h-auto">
+                                            #{tag}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="shrink-0" aria-label={`إجراءات السؤال ${q.id}`}>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => handleEdit(q)}>تعديل</DropdownMenuItem>
+                                    <DropdownMenuItem className="text-destructive" onClick={() => q.id && handleDeleteClick(q.id)}>حذف</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                            <div>النوع: {getTypeLabel(q.type as string)}</div>
+                            <div>الصعوبة: {getDifficultyLabel(q.difficulty as string)}</div>
+                            <div>المادة: {q.subject ? getSubjectLabel(q.subject) : '-'}</div>
+                            <div>المرحلة: {q.grade ? getGradeLabel(q.grade) : '-'}</div>
+                            <div>التصنيف: {getTaxonomyLabel(q.taxonomy || "understand")}</div>
+                            <div>معدل الصحة: {typeof q.correctRate === "number" ? `${q.correctRate}%` : '-'}</div>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="rounded-lg border bg-card p-2">
+                        <EmptyState
+                            icon={Search}
+                            title="لا توجد أسئلة مطابقة"
+                            description="جرّب تعديل معايير البحث أو إعادة ضبط الفلاتر لعرض نتائج أكثر."
+                            action={<Button variant="outline" size="sm" onClick={clearFilters}>إعادة ضبط الفلاتر</Button>}
+                        />
+                    </div>
+                )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2" aria-label="التنقل بين صفحات بنك الأسئلة">
+                <Button
+                    variant="outline"
+                    disabled={!canGoPrev || loading}
+                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                >
+                    السابق
+                </Button>
+                <span className="text-sm text-muted-foreground px-2">
+                    صفحة {page} من {totalPages}
+                </span>
+                <Button
+                    variant="outline"
+                    disabled={!canGoNext || loading}
+                    onClick={() => setPage(prev => prev + 1)}
+                >
+                    التالي
+                </Button>
+            </div>
+
+            {facetsLoading ? (
+                <div className="text-xs text-muted-foreground" aria-live="polite">يتم تحديث إحصاءات الفلاتر...</div>
+            ) : null}
 
             <QuestionEditor
                 open={isEditorOpen}

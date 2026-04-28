@@ -897,24 +897,167 @@ export interface Question {
     type: string;
     points: number;
     answerData?: any; // Contains options for MCQs, etc.
+    correctAnswer?: boolean;
+    correctOrder?: string[];
     // Add other fields as needed
     difficulty?: string;
     taxonomy?: string;
+    cognitiveLevel?: string;
     tags?: string[];
     subject?: string;
     grade?: string;
+    topic?: string;
+    subtopic?: string;
     status?: string;
+    usageCount?: number;
+    correctRate?: number;
+    avgTimeSeconds?: number;
+    createdAt?: string;
 }
 
-export async function getQuestions(params?: { search?: string; subject?: string; grade?: string; page?: number; limit?: number }) {
+export interface QuestionListPagination {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+}
+
+export interface QuestionListResponse {
+    data: Question[];
+    pagination?: Partial<QuestionListPagination>;
+    meta?: Partial<QuestionListPagination>;
+}
+
+export interface QuestionFacetItem {
+    value: string;
+    count: number;
+}
+
+export interface QuestionFacets {
+    types: QuestionFacetItem[];
+    difficulties: QuestionFacetItem[];
+    cognitiveLevels: QuestionFacetItem[];
+    statuses: QuestionFacetItem[];
+    grades: QuestionFacetItem[];
+    subjects: QuestionFacetItem[];
+    topics: QuestionFacetItem[];
+    subtopics: QuestionFacetItem[];
+}
+
+export interface QuestionQueryParams {
+    search?: string;
+    type?: string;
+    difficulty?: string;
+    cognitiveLevel?: string;
+    subject?: string;
+    grade?: string;
+    topic?: string;
+    subtopic?: string;
+    status?: string;
+    tags?: string[];
+    minCorrectRate?: number;
+    minUsageCount?: number;
+    sortBy?: 'createdAt' | 'difficulty' | 'usageCount' | 'correctRate' | 'avgTimeSeconds' | 'points';
+    sortOrder?: 'ASC' | 'DESC';
+    page?: number;
+    pageSize?: number;
+}
+
+export interface UpsertQuestionPayload {
+    questionAr: string;
+    questionEn: string;
+    type: string;
+    difficulty: string;
+    cognitiveLevel?: string;
+    grade?: string;
+    subject?: string;
+    tags?: string[];
+    points?: number;
+    options?: Array<{
+        id: string;
+        textAr: string;
+        textEn: string;
+        isCorrect: boolean;
+    }>;
+    answerData?: Record<string, unknown>;
+    correctAnswer?: boolean;
+    correctOrder?: string[];
+}
+
+export async function getQuestions(params?: QuestionQueryParams) {
     const query = new URLSearchParams();
-    if (params?.search) query.append('search', params.search);
+    if (params?.search?.trim()) query.append('search', params.search.trim());
+    if (params?.type && params.type !== 'all') query.append('type', params.type);
+    if (params?.difficulty && params.difficulty !== 'all') query.append('difficulty', params.difficulty);
+    if (params?.cognitiveLevel && params.cognitiveLevel !== 'all') {
+        query.append('cognitiveLevel', params.cognitiveLevel);
+    }
     if (params?.subject && params.subject !== 'all') query.append('subject', params.subject);
     if (params?.grade && params.grade !== 'all') query.append('grade', params.grade);
+    if (params?.topic?.trim()) query.append('topic', params.topic.trim());
+    if (params?.subtopic?.trim()) query.append('subtopic', params.subtopic.trim());
+    if (params?.status && params.status !== 'all') query.append('status', params.status);
+    if (params?.tags?.length) {
+        params.tags
+            .map(tag => tag.trim())
+            .filter(Boolean)
+            .forEach(tag => query.append('tags', tag));
+    }
+    if (typeof params?.minCorrectRate === 'number') {
+        query.append('minCorrectRate', params.minCorrectRate.toString());
+    }
+    if (typeof params?.minUsageCount === 'number') {
+        query.append('minUsageCount', params.minUsageCount.toString());
+    }
+    if (params?.sortBy) query.append('sortBy', params.sortBy);
+    if (params?.sortOrder) query.append('sortOrder', params.sortOrder);
     if (params?.page) query.append('page', params.page.toString());
-    if (params?.limit) query.append('pageSize', params.limit.toString());
+    if (params?.pageSize) query.append('pageSize', params.pageSize.toString());
 
-    return api.get<{ data: Question[], meta: any }>(`/questions?${query.toString()}`);
+    return api.get<QuestionListResponse>(`/questions${query.toString() ? `?${query.toString()}` : ''}`);
+}
+
+export async function getQuestionFacets(params?: Omit<QuestionQueryParams, 'page' | 'pageSize'>) {
+    const query = new URLSearchParams();
+    if (params?.search?.trim()) query.append('search', params.search.trim());
+    if (params?.type && params.type !== 'all') query.append('type', params.type);
+    if (params?.difficulty && params.difficulty !== 'all') query.append('difficulty', params.difficulty);
+    if (params?.cognitiveLevel && params.cognitiveLevel !== 'all') {
+        query.append('cognitiveLevel', params.cognitiveLevel);
+    }
+    if (params?.subject && params.subject !== 'all') query.append('subject', params.subject);
+    if (params?.grade && params.grade !== 'all') query.append('grade', params.grade);
+    if (params?.topic?.trim()) query.append('topic', params.topic.trim());
+    if (params?.subtopic?.trim()) query.append('subtopic', params.subtopic.trim());
+    if (params?.status && params.status !== 'all') query.append('status', params.status);
+    if (params?.tags?.length) {
+        params.tags
+            .map(tag => tag.trim())
+            .filter(Boolean)
+            .forEach(tag => query.append('tags', tag));
+    }
+    if (typeof params?.minCorrectRate === 'number') {
+        query.append('minCorrectRate', params.minCorrectRate.toString());
+    }
+    if (typeof params?.minUsageCount === 'number') {
+        query.append('minUsageCount', params.minUsageCount.toString());
+    }
+
+    return api.get<{ data: QuestionFacets }>(
+        `/questions/facets${query.toString() ? `?${query.toString()}` : ''}`,
+    );
+}
+
+export async function createQuestion(payload: UpsertQuestionPayload) {
+    return api.post<{ data: Question }>('/questions', payload);
+}
+
+export async function updateQuestion(id: string, payload: UpsertQuestionPayload) {
+    return api.put<{ data: Question }>(`/questions/${id}`, payload);
+}
+
+export async function deleteQuestion(id: string) {
+    return api.delete<{ success: boolean; message?: string }>(`/questions/${id}`);
 }
 
 // Assessments
