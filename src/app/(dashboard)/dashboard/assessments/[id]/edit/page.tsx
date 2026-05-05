@@ -16,7 +16,12 @@ import {
     AssessmentStatus,
     ShuffleMode
 } from "@/lib/api"
-import { SubjectEnum, EducationalStageEnum } from "@/lib/schemas/question"
+import {
+    SubjectEnum,
+    EducationalStageEnum,
+    EDUCATIONAL_STAGE_LABELS,
+    SUBJECT_LABELS,
+} from "@/lib/schemas/question"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -192,31 +197,11 @@ export default function AssessmentBuilderPage() {
         }
     }
 
-    const getSubjectLabel = (subject: string) => {
-        const labels: Record<string, string> = {
-            arabic: "اللغة العربية",
-            english: "اللغة الإنجليزية",
-            math: "الرياضيات",
-            science: "العلوم",
-            physics: "الفيزياء",
-            chemistry: "الكيمياء",
-            biology: "الأحياء",
-            history: "التاريخ",
-            geography: "الجغرافيا",
-            computer_science: "الحاسب الآلي"
-        }
-        return labels[subject] || subject
-    }
+    const getSubjectLabel = (subject: string) =>
+        SUBJECT_LABELS[subject as keyof typeof SUBJECT_LABELS] || subject
 
-    const getGradeLabel = (grade: string) => {
-        const labels: Record<string, string> = {
-            primary: "المرحلة الابتدائية",
-            preparatory: "المرحلة الإعدادية",
-            secondary: "المرحلة الثانوية",
-            university: "المرحلة الجامعية"
-        }
-        return labels[grade] || grade
-    }
+    const getGradeLabel = (grade: string) =>
+        EDUCATIONAL_STAGE_LABELS[grade as keyof typeof EDUCATIONAL_STAGE_LABELS] || grade
 
     if (isLoading) {
         return <div className="p-8 space-y-4">

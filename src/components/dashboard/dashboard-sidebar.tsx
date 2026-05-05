@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
+import { checkMyRbacAccess } from '@/lib/rbac';
 import { Button } from '@/components/ui/button';
 import {
     LayoutDashboard,
@@ -79,15 +80,40 @@ export function DashboardSidebar({ collapsed = false }: DashboardSidebarProps) {
     const pathname = usePathname();
     const { user, signOut } = useAuth();
     const [canManageAdmins, setCanManageAdmins] = useState(false);
+    const [canUseQuestionBank, setCanUseQuestionBank] = useState(false);
 
     useEffect(() => {
         setCanManageAdmins(user?.role === 'super_admin');
+        setCanUseQuestionBank(user?.role === 'super_admin');
+
+        if (user?.role !== 'admin' && user?.role !== 'super_admin') {
+            return;
+        }
+
+        let isMounted = true;
+        checkMyRbacAccess()
+            .then((access) => {
+                if (!isMounted) return;
+                setCanUseQuestionBank(access.hasQuestionBankAccess || access.canManageQuestionBank);
+            })
+            .catch(() => {
+                if (!isMounted) return;
+                setCanUseQuestionBank(user.role === 'super_admin');
+            });
+
+        return () => {
+            isMounted = false;
+        };
     }, [user]);
 
     const isStudent = user?.role === 'student' || pathname?.startsWith('/student');
     const isTeacher = user?.role === 'teacher' || pathname?.startsWith('/teacher');
 
     let sidebarItems = isStudent ? studentItems : isTeacher ? teacherItems : adminItems;
+
+    if (!isStudent && !isTeacher && !canUseQuestionBank) {
+        sidebarItems = sidebarItems.filter(item => item.href !== '/dashboard/question-bank');
+    }
 
     // Inject a single admin-management entry right before "Settings" for super admins only.
     if (canManageAdmins && !isStudent && !isTeacher) {
@@ -210,4 +236,3 @@ export function DashboardSidebar({ collapsed = false }: DashboardSidebarProps) {
         </aside>
     );
 }
-

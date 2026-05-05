@@ -97,6 +97,14 @@ export interface PaginatedAuditResult {
   totalPages: number;
 }
 
+export interface MyRbacAccess {
+  hasRbacAccess: boolean;
+  isSuperAdmin: boolean;
+  permissions: string[];
+  hasQuestionBankAccess: boolean;
+  canManageQuestionBank: boolean;
+}
+
 function unwrapData<T>(response: T | ApiEnvelope<T>): T {
   if (response && typeof response === 'object' && 'data' in response) {
     return (response as ApiEnvelope<T>).data;
@@ -121,7 +129,7 @@ export async function getAdmins() {
 }
 
 export async function checkMyRbacAccess() {
-  const response = await api.get<ApiEnvelope<{ hasRbacAccess: boolean; isSuperAdmin: boolean }>>('/admin/rbac/me');
+  const response = await api.get<ApiEnvelope<MyRbacAccess>>('/admin/rbac/me');
   return unwrapData(response);
 }
 

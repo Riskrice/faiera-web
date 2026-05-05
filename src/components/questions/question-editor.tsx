@@ -52,19 +52,22 @@ import {
     SUBJECT_LABELS,
 } from "@/lib/schemas/question"
 import { cn } from "@/lib/utils"
+import { QuestionPreview } from "./question-preview"
 
 interface QuestionEditorProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     question?: QuestionFormValues | null
     onSave: (question: QuestionFormValues) => void
+    defaultCategoryId?: string | null
 }
 
 export function QuestionEditor({
     open,
     onOpenChange,
     question,
-    onSave
+    onSave,
+    defaultCategoryId
 }: QuestionEditorProps) {
     const form = useForm<QuestionFormValues>({
         resolver: zodResolver(questionSchema) as any,
@@ -95,9 +98,11 @@ export function QuestionEditor({
         onOpenChange(false)
     }
 
+    const formValues = form.watch()
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[800px] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden border-none shadow-2xl">
+            <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden border-none shadow-2xl bg-white">
                 {/* Header with nice gradient/bg */}
                 {/* Header with premium glass-like feel */}
                 <DialogHeader className="p-6 pb-6 bg-gradient-to-r from-emerald-50 via-white to-white border-b sticky top-0 z-20 backdrop-blur-sm bg-opacity-95">
@@ -120,9 +125,11 @@ export function QuestionEditor({
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden bg-slate-50/30">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 overflow-hidden">
+                        
+                        {/* Left Side: Form Editor */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent bg-slate-50/30 border-l border-slate-200">
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
 
                             {/* 0. Academic Context Card (New) */}
                             <section className="space-y-4">
@@ -451,20 +458,154 @@ export function QuestionEditor({
                                             />
                                         </div>
                                     )}
+
+                                    {/* Ordering Layout */}
+                                    {questionType === "ordering" && (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-sm text-slate-500">أدخل العناصر بالترتيب الصحيح (من الأول إلى الأخير).</p>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: crypto.randomUUID(), text: "", isCorrect: true })}>
+                                                    <Plus className="w-4 h-4 mr-1" /> إضافة عنصر
+                                                </Button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {answers.map((answer, index) => (
+                                                    <div key={answer.id} className="flex items-center gap-3">
+                                                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold shrink-0">
+                                                            {index + 1}
+                                                        </div>
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`answers.${index}.text`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-1">
+                                                                    <FormControl>
+                                                                        <Input placeholder="نص العنصر..." {...field} value={field.value || ""} />
+                                                                    </FormControl>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-50">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Matching Layout */}
+                                    {questionType === "matching" && (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-sm text-slate-500">أدخل الأزواج المتطابقة (العمود الأول مع العمود الثاني).</p>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: crypto.randomUUID(), text: "", explanation: "", isCorrect: true })}>
+                                                    <Plus className="w-4 h-4 mr-1" /> إضافة زوج
+                                                </Button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="grid grid-cols-[1fr_1fr_auto] gap-3 mb-2 font-medium text-sm text-slate-500 text-center">
+                                                    <div>العمود الأول (المصطلح)</div>
+                                                    <div>العمود الثاني (التعريف)</div>
+                                                    <div className="w-8"></div>
+                                                </div>
+                                                {answers.map((answer, index) => (
+                                                    <div key={answer.id} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`answers.${index}.text`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input placeholder="نص العمود الأول..." {...field} value={field.value || ""} />
+                                                                    </FormControl>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`answers.${index}.explanation`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input placeholder="نص العمود الثاني..." {...field} value={field.value || ""} />
+                                                                    </FormControl>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-50">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Fill in the Blank Layout */}
+                                    {questionType === "fill_blank" && (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-sm text-slate-500">أضف الفراغات بالترتيب الذي تظهر به في النص المكتوب أعلاه.</p>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: crypto.randomUUID(), text: "", isCorrect: true })}>
+                                                    <Plus className="w-4 h-4 mr-1" /> إضافة فراغ
+                                                </Button>
+                                            </div>
+                                            <div className="p-4 bg-blue-50/50 rounded-lg text-sm text-blue-800 border border-blue-100 mb-4">
+                                                <strong>تلميح:</strong> يرجى استخدام العلامة <code>[blank]</code> أو <code>____</code> في نص السؤال بالأعلى للدلالة على الفراغات.
+                                            </div>
+                                            <div className="space-y-2">
+                                                {answers.map((answer, index) => (
+                                                    <div key={answer.id} className="flex items-center gap-3">
+                                                        <div className="flex items-center justify-center px-3 py-1 rounded-md bg-slate-100 text-slate-500 font-mono text-xs shrink-0">
+                                                            الفراغ {index + 1}
+                                                        </div>
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`answers.${index}.text`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-1">
+                                                                    <FormControl>
+                                                                        <Input placeholder="الإجابة الصحيحة للفراغ..." {...field} value={field.value || ""} />
+                                                                    </FormControl>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-50">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </section>
-
                         </div>
 
-                        <DialogFooter className="p-4 border-t bg-slate-50 flex items-center justify-between">
-                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="text-slate-500">إلغاء</Button>
-                            <Button type="submit" variant="emerald" className="gap-2 px-8 shadow-md hover:shadow-lg transition-all">
-                                <Save className="w-4 h-4" />
-                                حفظ السؤال
-                            </Button>
-                        </DialogFooter>
+                        {/* Right Side: Live Preview */}
+                        <div className="hidden lg:block w-[40%] bg-slate-100 overflow-hidden border-r border-slate-200">
+                            <div className="h-full flex flex-col">
+                                <div className="p-4 bg-slate-200/50 border-b border-slate-200 font-semibold text-slate-700 flex items-center gap-2">
+                                    <Target className="w-4 h-4 text-emerald-600" />
+                                    المعاينة المباشرة
+                                </div>
+                                <div className="flex-1 overflow-y-auto">
+                                    <QuestionPreview question={formValues as QuestionFormValues} />
+                                </div>
+                            </div>
+                        </div>
+
                     </form>
                 </Form>
+
+                <DialogFooter className="p-4 border-t bg-white flex items-center justify-between shrink-0 z-10 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+                    <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="text-slate-500">إلغاء</Button>
+                    <Button onClick={form.handleSubmit(onSubmit)} variant="emerald" className="gap-2 px-8 shadow-md hover:shadow-lg transition-all">
+                        <Save className="w-4 h-4" />
+                        حفظ السؤال
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )

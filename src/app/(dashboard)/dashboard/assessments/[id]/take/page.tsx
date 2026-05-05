@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
     getAssessment,
@@ -12,17 +12,15 @@ import {
     Assessment,
     AssessmentAttempt,
     Question,
-    AttemptAnswer
+    SubmitAnswerPayload
 } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
-import { Clock, CheckCircle2, AlertTriangle, ChevronRight, ChevronLeft, Save } from "lucide-react"
+import { Clock, CheckCircle2, AlertTriangle, ChevronRight, ChevronLeft } from "lucide-react"
 
 export default function AssessmentTakerPage() {
     const params = useParams()
@@ -37,7 +35,7 @@ export default function AssessmentTakerPage() {
     // UI State
     const [isLoading, setIsLoading] = useState(true)
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-    const [answers, setAnswers] = useState<Record<string, { answerText?: string, selectedOptionIds?: string[] }>>({})
+    const [answers, setAnswers] = useState<Record<string, SubmitAnswerPayload>>({})
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [timeLeft, setTimeLeft] = useState<number | null>(null) // in seconds
 
@@ -51,7 +49,7 @@ export default function AssessmentTakerPage() {
 
                 // 2. Check for active attempts
                 const attemptsRes = await getUserAttempts(assessmentId)
-                const inProgress = attemptsRes.data.find(a => a.status === 'IN_PROGRESS')
+                const inProgress = attemptsRes.data.find(a => a.status === 'in_progress')
 
                 if (inProgress) {
                     await resumeAttempt(inProgress.id)
@@ -68,7 +66,7 @@ export default function AssessmentTakerPage() {
 
     // Timer Logic
     useEffect(() => {
-        if (!activeAttempt || !assessment?.timeLimitMinutes || activeAttempt.status !== 'IN_PROGRESS') return
+        if (!activeAttempt || !assessment?.timeLimitMinutes || activeAttempt.status !== 'in_progress') return
 
         const startTime = new Date(activeAttempt.startedAt).getTime()
         const endTime = startTime + (assessment.timeLimitMinutes * 60 * 1000)
@@ -80,7 +78,7 @@ export default function AssessmentTakerPage() {
             if (diff <= 0) {
                 setTimeLeft(0)
                 clearInterval(timer)
-                handleSubmitAttempt() // Auto submit
+                handleSubmitAttempt(false) // Auto submit
             } else {
                 setTimeLeft(diff)
             }
@@ -96,11 +94,16 @@ export default function AssessmentTakerPage() {
             setQuestions(res.data.questions)
 
             // Rehydrate answers
-            const initialAnswers: Record<string, any> = {}
+            const initialAnswers: Record<string, SubmitAnswerPayload> = {}
             res.data.attempt.answers?.forEach(ans => {
                 initialAnswers[ans.questionId] = {
-                    answerText: ans.answerText,
-                    selectedOptionIds: ans.selectedOptionIds
+                    textAnswer: ans.textAnswer,
+                    selectedOptions: ans.selectedOptions,
+                    orderedItems: ans.orderedItems,
+                    matchedPairs: ans.matchedPairs,
+                    booleanAnswer: ans.answerData?.booleanAnswer as boolean | undefined,
+                    timeSpentSeconds: ans.timeSpentSeconds,
+                    flaggedForReview: ans.flaggedForReview,
                 }
             })
             setAnswers(initialAnswers)
@@ -123,7 +126,7 @@ export default function AssessmentTakerPage() {
         }
     }
 
-    const handleAnswerChange = (questionId: string, val: any) => {
+    const handleAnswerChange = (questionId: string, val: SubmitAnswerPayload) => {
         setAnswers(prev => ({ ...prev, [questionId]: val }))
         // Debounce save? Or save on navigation. For now, we save on navigation.
     }
@@ -157,16 +160,19 @@ export default function AssessmentTakerPage() {
         }
     }
 
-    const handleSubmitAttempt = async () => {
+    const handleSubmitAttempt = async (confirmBeforeSubmit = true) => {
         if (!activeAttempt) return
-        if (!confirm("هل أنت متأكد من تسليم الإجابات؟ لن يمكنك التعديل بعد ذلك.")) return
+        if (confirmBeforeSubmit && !confirm("هل أنت متأكد من تسليم الإجابات؟ لن يمكنك التعديل بعد ذلك.")) return
 
         await saveCurrentAnswer() // Save last Question
         setIsSubmitting(true)
         try {
-            await submitAttempt(activeAttempt.id)
-            router.push(`/dashboard/assessments`) // Or result page
+            const result = await submitAttempt(activeAttempt.id)
+            router.push(`/dashboard/assessments/${assessmentId}/results`)
             toast.success("تم تسليم الاختبار بنجاح!")
+            if (result.data.status === "submitted") {
+                toast.info("المحاولة بانتظار التصحيح اليدوي")
+            }
         } catch (error) {
             toast.error("فشل تسليم الاختبار")
             setIsSubmitting(false)
@@ -244,11 +250,11 @@ export default function AssessmentTakerPage() {
                         </div>
                     )}
 
-                    <Button variant={isSubmitting ? "outline" : "emerald"} onClick={handleSubmitAttempt} disabled={isSubmitting}>
+                    <Button variant={isSubmitting ? "outline" : "emerald"} onClick={() => handleSubmitAttempt()} disabled={isSubmitting}>
                         تسليم الاختبار
                     </Button>
                 </div>
-                <Progress value={(currentQuestionIndex / questions.length) * 100} className="h-1 rounded-none" />
+                <Progress value={questions.length ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0} className="h-1 rounded-none" />
             </header>
 
             {/* Main Content */}
@@ -258,16 +264,27 @@ export default function AssessmentTakerPage() {
                         <CardContent className="p-8 flex-1 space-y-8">
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold leading-relaxed">{currentQuestion.questionAr || currentQuestion.questionEn || currentQuestion.text}</h2>
-                                {currentQuestion.type === 'mcq' && (
+                                {(currentQuestion.type === 'mcq' || currentQuestion.type === 'mcq_multi') && (
                                     <div className="space-y-3 mt-6">
                                         {(currentQuestion.answerData as any[])?.map((opt: any) => {
-                                            const isSelected = answers[currentQuestion.id]?.selectedOptionIds?.includes(opt.id);
+                                            const selectedOptions = answers[currentQuestion.id]?.selectedOptions || [];
+                                            const isSelected = selectedOptions.includes(opt.id);
                                             // Handle textAr/textEn based on locale or just text if normalized
                                             const text = opt.text || opt.textAr || opt.textEn;
                                             return (
                                                 <div
                                                     key={opt.id}
-                                                    onClick={() => handleAnswerChange(currentQuestion.id, { selectedOptionIds: [opt.id] })}
+                                                    onClick={() => {
+                                                        if (currentQuestion.type === 'mcq_multi') {
+                                                            const nextSelected = isSelected
+                                                                ? selectedOptions.filter(id => id !== opt.id)
+                                                                : [...selectedOptions, opt.id]
+                                                            handleAnswerChange(currentQuestion.id, { selectedOptions: nextSelected })
+                                                            return
+                                                        }
+
+                                                        handleAnswerChange(currentQuestion.id, { selectedOptions: [opt.id] })
+                                                    }}
                                                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3
                                                         ${isSelected
                                                             ? 'border-emerald-500 bg-emerald-50'
@@ -286,19 +303,14 @@ export default function AssessmentTakerPage() {
                                 {currentQuestion.type === 'true_false' && (
                                     <div className="grid grid-cols-2 gap-4 mt-6">
                                         {['true', 'false'].map((val) => {
-                                            // Try to find in answerData, else fallback
-                                            const opts = (currentQuestion.answerData as any[]) || [];
-                                            const opt = opts.find((o: any) =>
-                                                (val === 'true' && (o.textAr === 'صحيح' || o.textEn === 'True')) ||
-                                                (val === 'false' && (o.textAr === 'خاطأ' || o.textEn === 'False'))
-                                            ) || { id: val, text: val === 'true' ? 'صحيح' : 'خاطأ' };
-
-                                            const isSelected = answers[currentQuestion.id]?.selectedOptionIds?.includes(opt.id);
+                                            const opt = { id: val, text: val === 'true' ? 'صحيح' : 'خاطأ' };
+                                            const booleanValue = val === 'true';
+                                            const isSelected = answers[currentQuestion.id]?.booleanAnswer === booleanValue;
 
                                             return (
                                                 <div
                                                     key={val}
-                                                    onClick={() => handleAnswerChange(currentQuestion.id, { selectedOptionIds: [opt.id] })}
+                                                    onClick={() => handleAnswerChange(currentQuestion.id, { booleanAnswer: booleanValue })}
                                                     className={`p-6 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2
                                                         ${isSelected
                                                             ? 'border-emerald-500 bg-emerald-50'
@@ -310,13 +322,18 @@ export default function AssessmentTakerPage() {
                                         })}
                                     </div>
                                 )}
-                                {(currentQuestion.type === 'short_answer' || currentQuestion.type === 'code') && (
+                                {(currentQuestion.type === 'short_answer' || currentQuestion.type === 'essay') && (
                                     <Textarea
                                         placeholder="اكتب إجابتك هنا..."
                                         className="min-h-[200px] text-lg p-4"
-                                        value={answers[currentQuestion.id]?.answerText || ''}
-                                        onChange={(e) => handleAnswerChange(currentQuestion.id, { answerText: e.target.value })}
+                                        value={answers[currentQuestion.id]?.textAnswer || ''}
+                                        onChange={(e) => handleAnswerChange(currentQuestion.id, { textAnswer: e.target.value })}
                                     />
+                                )}
+                                {!['mcq', 'mcq_multi', 'true_false', 'short_answer', 'essay'].includes(currentQuestion.type) && (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                                        هذا النوع من الأسئلة يحتاج واجهة إجابة متخصصة قبل استخدامه في الاختبارات.
+                                    </div>
                                 )}
                             </div>
                         </CardContent>
@@ -331,7 +348,7 @@ export default function AssessmentTakerPage() {
                             </Button>
 
                             {currentQuestionIndex === questions.length - 1 ? (
-                                <Button variant="emerald" onClick={handleSubmitAttempt} className="gap-2 px-8">
+                                <Button variant="emerald" onClick={() => handleSubmitAttempt()} className="gap-2 px-8">
                                     <CheckCircle2 className="w-4 h-4" /> تسليم
                                 </Button>
                             ) : (

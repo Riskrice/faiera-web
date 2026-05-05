@@ -877,6 +877,7 @@ export interface Assessment {
     showScoreImmediately: boolean;
     showCorrectAnswers: boolean;
     showExplanations: boolean;
+    courseId?: string;
     assessmentQuestions: AssessmentQuestion[];
 }
 
@@ -959,6 +960,7 @@ export interface QuestionQueryParams {
     minUsageCount?: number;
     sortBy?: 'createdAt' | 'difficulty' | 'usageCount' | 'correctRate' | 'avgTimeSeconds' | 'points';
     sortOrder?: 'ASC' | 'DESC';
+    categoryId?: string;
     page?: number;
     pageSize?: number;
 }
@@ -973,6 +975,7 @@ export interface UpsertQuestionPayload {
     subject?: string;
     tags?: string[];
     points?: number;
+    categoryId?: string;
     options?: Array<{
         id: string;
         textAr: string;
@@ -1011,6 +1014,7 @@ export async function getQuestions(params?: QuestionQueryParams) {
     }
     if (params?.sortBy) query.append('sortBy', params.sortBy);
     if (params?.sortOrder) query.append('sortOrder', params.sortOrder);
+    if (params?.categoryId) query.append('categoryId', params.categoryId);
     if (params?.page) query.append('page', params.page.toString());
     if (params?.pageSize) query.append('pageSize', params.pageSize.toString());
 
@@ -1042,10 +1046,9 @@ export async function getQuestionFacets(params?: Omit<QuestionQueryParams, 'page
     if (typeof params?.minUsageCount === 'number') {
         query.append('minUsageCount', params.minUsageCount.toString());
     }
+    if (params?.categoryId) query.append('categoryId', params.categoryId);
 
-    return api.get<{ data: QuestionFacets }>(
-        `/questions/facets${query.toString() ? `?${query.toString()}` : ''}`,
-    );
+    return api.get<{ data: QuestionFacets }>(`/questions/facets${query.toString() ? `?${query.toString()}` : ''}`,);
 }
 
 export async function createQuestion(payload: UpsertQuestionPayload) {
@@ -1113,7 +1116,7 @@ export interface AssessmentAttempt {
     startedAt: string;
     completedAt?: string;
     score?: number;
-    status: 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED';
+    status: 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'in_progress' | 'completed' | 'expired' | 'submitted' | 'graded' | 'timed_out';
     answers?: AttemptAnswer[];
 }
 
@@ -1123,6 +1126,23 @@ export interface AttemptAnswer {
     selectedOptionIds?: string[]; // For MCQ
     isCorrect?: boolean;
     pointsAwarded?: number;
+    textAnswer?: string;
+    selectedOptions?: string[];
+    orderedItems?: string[];
+    matchedPairs?: Record<string, string>;
+    answerData?: Record<string, unknown>;
+    timeSpentSeconds?: number;
+    flaggedForReview?: boolean;
+}
+
+export interface SubmitAnswerPayload {
+    textAnswer?: string;
+    selectedOptions?: string[];
+    orderedItems?: string[];
+    matchedPairs?: Record<string, string>;
+    booleanAnswer?: boolean;
+    timeSpentSeconds?: number;
+    flaggedForReview?: boolean;
 }
 
 export async function startAttempt(assessmentId: string) {
@@ -1133,7 +1153,7 @@ export async function getAttempt(id: string) {
     return api.get<{ data: { attempt: AssessmentAttempt; questions: Question[] } }>(`/attempts/${id}`);
 }
 
-export async function saveAnswer(attemptId: string, questionId: string, answer: { answerText?: string, selectedOptionIds?: string[] }) {
+export async function saveAnswer(attemptId: string, questionId: string, answer: SubmitAnswerPayload) {
     return api.post(`/attempts/${attemptId}/answers`, { questionId, ...answer });
 }
 
@@ -1148,4 +1168,57 @@ export async function getUserAttempts(assessmentId?: string) {
 
 export async function getAssessmentAttempts(assessmentId: string) {
     return api.get<{ data: AssessmentAttempt[] }>(`/attempts/assessment/${assessmentId}`);
+}
+
+// Question Categories
+export interface QuestionCategory {
+    id: string;
+    nameAr: string;
+    nameEn: string;
+    description?: string;
+    parentId?: string;
+    children?: QuestionCategory[];
+    questionCount?: number;
+}
+
+export async function getQuestionCategoryTree() {
+    return api.get<{ data: QuestionCategory[] }>('/question-categories/tree');
+}
+
+export async function createQuestionCategory(payload: { nameAr: string; nameEn: string; description?: string; parentId?: string }) {
+    return api.post<{ data: QuestionCategory }>('/question-categories', payload);
+}
+
+export async function updateQuestionCategory(id: string, payload: Partial<{ nameAr: string; nameEn: string; description?: string; parentId?: string }>) {
+    return api.patch<{ data: QuestionCategory }>(`/question-categories/${id}`, payload);
+}
+
+export async function deleteQuestionCategory(id: string) {
+    return api.delete<{ success: boolean }>(`/question-categories/${id}`);
+}
+
+export async function reorderQuestions(items: { questionId: string; sortOrder: number }[]) {
+    return api.patch('/questions/reorder', { items });
+}
+
+export interface QuestionAnalytics {
+    totalQuestions: number;
+    avgCorrectRate: number;
+    avgTimeSeconds: number;
+    flaggedCount: number;
+    difficultyDistribution: { value: string; count: number }[];
+    typeDistribution: { value: string; count: number }[];
+    bloomDistribution: { value: string; count: number }[];
+    scatterData: { id: string; text: string; correctRate: number; usageCount: number; type: string }[];
+    flaggedQuestions: { id: string; text: string; correctRate: number; usageCount: number; reason: string }[];
+    topUsed: { id: string; text: string; usageCount: number; correctRate: number }[];
+    leastUsed: { id: string; text: string; usageCount: number; correctRate: number }[];
+}
+
+export async function getQuestionAnalytics(params?: { categoryId?: string; grade?: string; subject?: string }) {
+    const query = new URLSearchParams();
+    if (params?.categoryId) query.append('categoryId', params.categoryId);
+    if (params?.grade) query.append('grade', params.grade);
+    if (params?.subject) query.append('subject', params.subject);
+    return api.get<{ data: QuestionAnalytics }>(`/questions/analytics${query.toString() ? `?${query.toString()}` : ''}`);
 }

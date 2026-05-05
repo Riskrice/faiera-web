@@ -55,7 +55,7 @@ import {
 import { usePagination } from "@/hooks/use-pagination";
 import { useSortAndFilter } from "@/hooks/use-sort-and-filter";
 
-interface Assessment {
+interface AssessmentRow {
     id: string;
     title: string;
     course: string;
@@ -67,7 +67,7 @@ interface Assessment {
 }
 
 import { useRouter } from 'next/navigation';
-import { createAssessment, AssessmentType } from '@/lib/api';
+import { createAssessment, AssessmentType, getAssessments, deleteAssessment, type Assessment as ApiAssessment } from '@/lib/api';
 
 function CreateAssessmentForm({ onSuccess, onCancel }: { onSuccess: (id: string) => void, onCancel: () => void }) {
     const [title, setTitle] = useState('')
@@ -82,7 +82,7 @@ function CreateAssessmentForm({ onSuccess, onCancel }: { onSuccess: (id: string)
                 titleAr: title,
                 titleEn: title,
                 type: AssessmentType.QUIZ,
-                grade: 'secondary', // Defaults
+                grade: 'grade_10',
                 subject: 'computer_science'
             })
             toast.success("تم إنشاء الاختبار")
@@ -117,10 +117,8 @@ function CreateAssessmentForm({ onSuccess, onCancel }: { onSuccess: (id: string)
 export default function AssessmentsPage() {
     const router = useRouter()
     const { accessToken } = useAuth()
-    const [assessments, setAssessments] = useState<Assessment[]>([])
+    const [assessments, setAssessments] = useState<AssessmentRow[]>([])
     const [loading, setLoading] = useState(true)
-
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"
 
     // Fetch assessments from API
     useEffect(() => {
@@ -131,31 +129,18 @@ export default function AssessmentsPage() {
             }
 
             try {
-                const response = await fetch(`${apiUrl}/assessments`, {
-                    headers: {
-                        "Authorization": `Bearer ${accessToken}`,
-                        "Content-Type": "application/json",
-                    },
-                })
-
-                if (response.ok) {
-                    const data = await response.json()
-                    if (data.data) {
-                        const mappedAssessments = data.data.map((a: any) => ({
-                            id: a.id,
-                            title: a.title || a.titleAr,
-                            course: a.course?.title || a.courseTitle || "غير محدد",
-                            questionsCount: a.questionsCount || a.questions?.length || 0,
-                            totalMarks: a.totalMarks || 100,
-                            duration: a.duration ? `${a.duration} دقيقة` : "غير محدد",
-                            status: a.status || "draft",
-                            dueDate: a.dueDate || a.endDate || new Date().toISOString().split('T')[0],
-                        }))
-                        setAssessments(mappedAssessments)
-                    }
-                } else {
-                    toast.error("فشل في تحميل الاختبارات")
-                }
+                const response = await getAssessments()
+                const mappedAssessments = (response.data || []).map((a: ApiAssessment) => ({
+                    id: a.id,
+                    title: a.titleAr || a.titleEn,
+                    course: a.courseId || "غير محدد",
+                    questionsCount: a.assessmentQuestions?.length || 0,
+                    totalMarks: a.totalPoints || 0,
+                    duration: a.timeLimitMinutes ? `${a.timeLimitMinutes} دقيقة` : "غير محدد",
+                    status: a.status || "draft",
+                    dueDate: a.endDate || a.startDate || "",
+                }))
+                setAssessments(mappedAssessments)
             } catch (error) {
                 console.error("Failed to fetch assessments:", error)
                 toast.error("فشل في الاتصال بالخادم")
@@ -165,13 +150,12 @@ export default function AssessmentsPage() {
         }
 
         fetchAssessments()
-    }, [accessToken, apiUrl])
+    }, [accessToken])
 
     const handleDeleteAssessment = async (id: string) => {
         if (!confirm("هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.")) return
 
         try {
-            const { deleteAssessment } = await import("@/lib/api")
             await deleteAssessment(id)
             toast.success("تم حذف الاختبار بنجاح")
             setAssessments(prev => prev.filter(a => a.id !== id))

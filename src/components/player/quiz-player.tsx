@@ -16,6 +16,7 @@ interface Question {
     text: string;
     type: string;
     options: { id: string; text: string }[];
+    extraData?: any;
     points: number;
 }
 
@@ -38,7 +39,7 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
     const [status, setStatus] = useState<"loading" | "intro" | "active" | "submitting" | "result" | "error">("loading");
     const [assessment, setAssessment] = useState<Assessment | null>(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [answers, setAnswers] = useState<Record<string, string>>({});
+    const [answers, setAnswers] = useState<Record<string, any>>({});
     const [timeLeft, setTimeLeft] = useState(0);
     const [result, setResult] = useState<{ score: number; passed: boolean; correctCount: number } | null>(null);
 
@@ -53,9 +54,10 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
                 const mappedQuestions = (data.assessmentQuestions || []).map((aq: any) => {
                     const q = aq.question;
                     let options: any[] = [];
+                    let extraData: any = {};
 
                     if (q.type === 'mcq' || q.type === 'mcq_multi') {
-                        options = (q.answerData || []).map((opt: any) => ({
+                        options = (q.options || q.answerData?.options || []).map((opt: any) => ({
                             id: opt.id,
                             text: opt.textAr || opt.textEn
                         }));
@@ -64,6 +66,15 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
                             { id: 'true', text: 'صواب' },
                             { id: 'false', text: 'خطأ' }
                         ];
+                    } else if (q.type === 'matching') {
+                        extraData.matchingPairs = (q.matchingPairs || q.answerData?.matchingPairs || []).map((m: any) => ({
+                            id: m.id || m.leftAr, left: m.leftAr || m.leftEn, right: m.rightAr || m.rightEn
+                        }));
+                        extraData.shuffledRight = [...extraData.matchingPairs].map((m: any) => m.right).sort(() => Math.random() - 0.5);
+                    } else if (q.type === 'ordering') {
+                        extraData.orderItems = [...(q.correctOrder || q.answerData?.correctOrder || [])].sort(() => Math.random() - 0.5);
+                    } else if (q.type === 'fill_blank') {
+                        extraData.blankCount = (q.blankAnswers || q.answerData?.blankAnswers || []).length;
                     }
 
                     return {
@@ -71,6 +82,7 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
                         text: q.questionAr || q.questionEn,
                         type: q.type,
                         options,
+                        extraData,
                         points: aq.overridePoints || q.points || 1
                     };
                 });
@@ -140,7 +152,7 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
         setStatus("active");
     };
 
-    const handleAnswer = (value: string) => {
+    const handleAnswer = (value: any) => {
         if (!assessment) return;
         setAnswers(prev => ({
             ...prev,
@@ -166,32 +178,38 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
         setStatus("submitting");
 
         try {
-            // Mock scoring calculation (client-side for immediate feedback demo, normally server-side)
-            // In a real app: await api.post(`/assessments/${assessmentId}/submit`, { answers });
+            const attemptResponse: any = await api.post('/attempts/start', { assessmentId });
+            const attempt = attemptResponse.data;
 
-            // Simulating API delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await Promise.all(
+                assessment.questions.map(q => {
+                    const studentAnswer = answers[q.id];
+                    if (!studentAnswer) return Promise.resolve();
 
-            let totalPoints = 0;
-            let earnedPoints = 0;
-            let correctCount = 0;
+                    let payload: any = { questionId: q.id };
+                    if (q.type === 'true_false') {
+                        payload.booleanAnswer = studentAnswer === 'true';
+                    } else if (q.type === 'mcq' || q.type === 'mcq_multi') {
+                        payload.selectedOptions = Array.isArray(studentAnswer) ? studentAnswer : [studentAnswer];
+                    } else if (q.type === 'short_answer' || q.type === 'essay') {
+                        payload.textAnswer = studentAnswer;
+                    } else if (q.type === 'matching') {
+                        payload.matchingData = studentAnswer;
+                    } else if (q.type === 'ordering') {
+                        payload.orderedList = studentAnswer;
+                    } else if (q.type === 'fill_blank') {
+                        payload.blankAnswers = studentAnswer;
+                    }
 
-            assessment.questions.forEach(q => {
-                totalPoints += q.points;
-                // Simple mock check - assuming first option is correct roughly for demo or server verification
-                // To actually verify, we need server response. 
-                // Let's assume passed for demo purposes or random if no real key.
-                // In production, the server returns the result. We mock passing here.
-                const studentAnswer = answers[q.id];
-                const isCorrect = studentAnswer && (studentAnswer.includes("true") || studentAnswer.includes("o2") || studentAnswer.includes("opt2")); // Mock logic
-                if (isCorrect || Math.random() > 0.5) { // Randomize success for realistic feel without real backend validation logic available
-                    earnedPoints += q.points;
-                    correctCount++;
-                }
-            });
+                    return api.post(`/attempts/${attempt.id}/answers`, payload);
+                }),
+            );
 
-            const score = Math.round((earnedPoints / totalPoints) * 100);
-            const passed = score >= assessment.passingScore;
+            const submitResponse: any = await api.post(`/attempts/${attempt.id}/submit`);
+            const attemptResult = submitResponse.data;
+            const score = Math.round(attemptResult.percentageScore || 0);
+            const passed = Boolean(attemptResult.passed);
+            const correctCount = Number(attemptResult.correctAnswers || 0);
 
             setResult({ score, passed, correctCount });
             setStatus("result");
@@ -376,6 +394,7 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
                             </h2>
                         </CardHeader>
                         <CardContent className="px-0 py-6">
+                            {(question.type === 'mcq' || question.type === 'true_false') && (
                             <RadioGroup
                                 value={answers[question.id] || ""}
                                 onValueChange={handleAnswer}
@@ -402,6 +421,108 @@ export function QuizPlayer({ assessmentId, title, onComplete }: QuizPlayerProps)
                                     );
                                 })}
                             </RadioGroup>
+                            )}
+
+                            {(question.type === 'short_answer' || question.type === 'essay') && (
+                                <textarea
+                                    className="w-full min-h-[150px] p-4 text-lg border-2 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/20 outline-none transition-all"
+                                    placeholder="اكتب إجابتك هنا..."
+                                    value={answers[question.id] || ""}
+                                    onChange={(e) => handleAnswer(e.target.value)}
+                                />
+                            )}
+
+                            {question.type === 'fill_blank' && (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-muted-foreground whitespace-pre-line text-lg mb-4 bg-muted/20 p-4 rounded-lg">{(question.text || "").replace(/\[blank\]/g, ' ________ ')}</p>
+                                    <div className="grid gap-3">
+                                        {Array.from({ length: Math.max(1, question.extraData?.blankCount || (question.text.match(/\[blank\]/g) || []).length) }).map((_, i) => {
+                                            const currentAns = answers[question.id] || [];
+                                            return (
+                                                <div key={i} className="flex items-center gap-3">
+                                                    <span className="font-bold text-muted-foreground shrink-0 w-16">فراغ {i + 1}:</span>
+                                                    <input
+                                                        type="text"
+                                                        className="flex-1 p-3 border-2 rounded-lg focus:border-primary focus:outline-none"
+                                                        placeholder="أدخل الكلمة المناسبة"
+                                                        value={currentAns[i] || ""}
+                                                        onChange={(e) => {
+                                                            const newArr = [...currentAns];
+                                                            newArr[i] = e.target.value;
+                                                            handleAnswer(newArr);
+                                                        }}
+                                                    />
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {question.type === 'matching' && (
+                                <div className="grid gap-4">
+                                    {(question.extraData?.matchingPairs || []).map((m: any, i: number) => {
+                                        const currentAns = answers[question.id] || {};
+                                        return (
+                                            <div key={i} className="flex flex-col md:flex-row gap-4 p-4 border rounded-xl bg-muted/10 items-center">
+                                                <div className="flex-1 p-3 font-medium bg-card border rounded-lg text-center w-full shadow-sm">
+                                                    {m.left}
+                                                </div>
+                                                <div className="text-muted-foreground hidden md:block">يُطابق ←</div>
+                                                <select
+                                                    className="flex-1 p-3 border-2 rounded-lg focus:border-primary w-full bg-card shadow-sm cursor-pointer"
+                                                    value={currentAns[m.left] || ""}
+                                                    onChange={(e) => {
+                                                        handleAnswer({ ...currentAns, [m.left]: e.target.value });
+                                                    }}
+                                                >
+                                                    <option value="">اختر الإجابة المناسبة الموازية</option>
+                                                    {(question.extraData?.shuffledRight || []).map((rightTxt: string, rI: number) => (
+                                                        <option key={rI} value={rightTxt}>{rightTxt}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            {question.type === 'ordering' && (
+                                <div className="space-y-3">
+                                    {(answers[question.id] || question.extraData?.orderItems || []).map((item: string, i: number, arr: string[]) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 border-2 rounded-xl bg-card hover:bg-muted/10 transition-colors">
+                                            <div className="flex flex-col gap-1 w-10 shrink-0">
+                                                <button
+                                                    disabled={i === 0}
+                                                    onClick={() => {
+                                                        const copy = [...arr];
+                                                        [copy[i - 1], copy[i]] = [copy[i], copy[i - 1]];
+                                                        handleAnswer(copy);
+                                                    }}
+                                                    className="p-1 bg-muted rounded disabled:opacity-30 hover:bg-primary/20 transition-colors"
+                                                >
+                                                    ▲
+                                                </button>
+                                                <button
+                                                    disabled={i === arr.length - 1}
+                                                    onClick={() => {
+                                                        const copy = [...arr];
+                                                        [copy[i + 1], copy[i]] = [copy[i], copy[i + 1]];
+                                                        handleAnswer(copy);
+                                                    }}
+                                                    className="p-1 bg-muted rounded disabled:opacity-30 hover:bg-primary/20 transition-colors"
+                                                >
+                                                    ▼
+                                                </button>
+                                            </div>
+                                            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold font-numeric border border-primary/20">
+                                                {i + 1}
+                                            </div>
+                                            <span className="font-medium text-lg flex-1">{item}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

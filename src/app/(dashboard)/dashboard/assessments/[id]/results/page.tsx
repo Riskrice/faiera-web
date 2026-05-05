@@ -61,13 +61,14 @@ export default function AssessmentResultsPage() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'COMPLETED':
-            case 'GRADED':
+            case 'graded':
                 return <Badge className="bg-emerald-500">تم التسليم</Badge>
-            case 'IN_PROGRESS':
+            case 'in_progress':
                 return <Badge variant="secondary">جاري الحل</Badge>
-            case 'SUBMITTED':
+            case 'submitted':
                 return <Badge className="bg-yellow-500">بانتظار التصحيح</Badge>
+            case 'timed_out':
+                return <Badge variant="destructive">انتهى الوقت</Badge>
             default:
                 return <Badge variant="outline">{status}</Badge>
         }
@@ -127,11 +128,13 @@ export default function AssessmentResultsPage() {
                                         </TableCell>
                                         <TableCell>{getStatusBadge(attempt.status)}</TableCell>
                                         <TableCell>
-                                            {attempt.score !== undefined ? `${attempt.score} / ${assessment.totalPoints}` : '-'}
+                                            {attempt.score !== undefined
+                                                ? `${attempt.score}`
+                                                : '-'}
                                         </TableCell>
                                         <TableCell>
                                             {attempt.score !== undefined
-                                                ? `${Math.round((attempt.score / assessment.totalPoints) * 100)}%`
+                                                ? `${Math.round(attempt.score)}%`
                                                 : '-'}
                                         </TableCell>
                                         <TableCell className="text-left">

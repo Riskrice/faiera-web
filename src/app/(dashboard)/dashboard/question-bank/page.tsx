@@ -50,10 +50,16 @@ import {
     SUBJECT_LABELS,
 } from "@/lib/schemas/question"
 import { QuestionEditor } from "@/components/questions/question-editor"
+import { QuestionBanksSidebar } from "@/components/questions/question-banks-sidebar"
 import { useAuth } from "@/contexts/auth-context"
-import { createQuestion, deleteQuestion, getQuestionFacets, getQuestions, Question, updateQuestion } from "@/lib/api"
+import { createQuestion, deleteQuestion, getQuestionFacets, getQuestions, Question, updateQuestion, reorderQuestions, getQuestionAnalytics, QuestionAnalytics } from "@/lib/api"
+import { checkMyRbacAccess } from "@/lib/rbac"
 import { toast } from "sonner"
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { QuestionAnalyticsDashboard } from "@/components/questions/question-analytics-dashboard"
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core"
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { SortableQuestionRow } from "@/components/questions/sortable-question-row"
 interface QuestionRow {
     id: string
     text: string
@@ -99,6 +105,7 @@ const EMPTY_FACETS: QuestionFacetsState = {
 
 export default function QuestionBankPage() {
     const { accessToken } = useAuth()
+    const [canManageQuestionBank, setCanManageQuestionBank] = useState(false)
     const [searchInput, setSearchInput] = useState("")
     const [searchTerm, setSearchTerm] = useState("")
     const [filterType, setFilterType] = useState<string>("all")
@@ -107,6 +114,12 @@ export default function QuestionBankPage() {
     const [filterGrade, setFilterGrade] = useState<string>("all")
     const [sortBy, setSortBy] = useState<"createdAt" | "difficulty" | "usageCount" | "correctRate" | "avgTimeSeconds" | "points">("createdAt")
     const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("DESC")
+    const [selectedBankId, setSelectedBankId] = useState<string | null>(null)
+    const [selectedBankName, setSelectedBankName] = useState<string | null>(null)
+    const [activeTab, setActiveTab] = useState<"questions" | "analytics">("questions")
+    const [isDragMode, setIsDragMode] = useState(false)
+    const [analyticsData, setAnalyticsData] = useState<QuestionAnalytics | null>(null)
+    const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false)
 
     const [questions, setQuestions] = useState<QuestionRow[]>([])
     const [facets, setFacets] = useState<QuestionFacetsState>(EMPTY_FACETS)
@@ -136,10 +149,11 @@ export default function QuestionBankPage() {
             grade: filterGrade,
             sortBy,
             sortOrder,
+            categoryId: selectedBankId || undefined,
             page,
             pageSize,
         }),
-        [searchTerm, filterType, filterDifficulty, filterSubject, filterGrade, sortBy, sortOrder, page, pageSize],
+        [searchTerm, filterType, filterDifficulty, filterSubject, filterGrade, sortBy, sortOrder, selectedBankId, page, pageSize],
     )
 
     const mapQuestionAnswers = (q: Question): QuestionFormValues["answers"] | undefined => {
@@ -207,6 +221,7 @@ export default function QuestionBankPage() {
                     difficulty: queryParams.difficulty,
                     subject: queryParams.subject,
                     grade: queryParams.grade,
+                    categoryId: queryParams.categoryId,
                 }),
             ])
 
@@ -236,9 +251,80 @@ export default function QuestionBankPage() {
     }
 
     useEffect(() => {
-        fetchQuestionsAndFacets()
+        if (activeTab === "questions") {
+            fetchQuestionsAndFacets()
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [accessToken, queryParams])
+    }, [accessToken, queryParams, activeTab])
+
+    useEffect(() => {
+        if (activeTab === "analytics" && accessToken) {
+            const fetchAnalytics = async () => {
+                try {
+                    setIsAnalyticsLoading(true)
+                    const response = await getQuestionAnalytics({
+                        categoryId: queryParams.categoryId,
+                        grade: queryParams.grade !== 'all' ? queryParams.grade : undefined,
+                        subject: queryParams.subject !== 'all' ? queryParams.subject : undefined,
+                    })
+                    setAnalyticsData(response.data)
+                } catch (error) {
+                    console.error("Failed to fetch analytics:", error)
+                    toast.error("فشل في تحميل بيانات التحليلات")
+                } finally {
+                    setIsAnalyticsLoading(false)
+                }
+            }
+            fetchAnalytics()
+        }
+    }, [activeTab, queryParams.categoryId, queryParams.grade, queryParams.subject, accessToken])
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    )
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event
+        
+        if (active.id !== over?.id) {
+            const oldIndex = questions.findIndex((q) => q.id === active.id)
+            const newIndex = questions.findIndex((q) => q.id === over?.id)
+            
+            if (oldIndex !== -1 && newIndex !== -1) {
+                const newQuestions = arrayMove(questions, oldIndex, newIndex)
+                // Optimistic UI update
+                setQuestions(newQuestions)
+                
+                try {
+                    toast.loading("جارٍ حفظ الترتيب...", { id: "reorder" })
+                    // Prepare items payload. sortOrder is typically 0-based or 1-based, here we use index
+                    const items = newQuestions.map((q, index) => ({
+                        questionId: q.id,
+                        sortOrder: index,
+                    }))
+                    
+                    await reorderQuestions(items)
+                    toast.success("تم حفظ الترتيب ✓", { id: "reorder" })
+                } catch (error) {
+                    console.error("Failed to reorder questions:", error)
+                    toast.error("فشل في حفظ الترتيب", { id: "reorder" })
+                    // Rollback on failure
+                    fetchQuestionsAndFacets()
+                }
+            }
+        }
+    }
+
+    // Fetch RBAC access
+    useEffect(() => {
+        if (!accessToken) return
+        checkMyRbacAccess().then(access => {
+            setCanManageQuestionBank(access.canManageQuestionBank || access.isSuperAdmin)
+        }).catch(() => {})
+    }, [accessToken])
 
     // Editor State
     const [isEditorOpen, setIsEditorOpen] = useState(false)
@@ -262,6 +348,7 @@ export default function QuestionBankPage() {
                 subject: data.subject,
                 tags: data.tags || [],
                 points: data.points,
+                categoryId: selectedBankId || undefined,
             }
 
             if (data.type === 'mcq' || data.type === 'mcq_multi') {
@@ -272,11 +359,26 @@ export default function QuestionBankPage() {
                     isCorrect: a.isCorrect
                 }))
             } else if (data.type === 'true_false') {
-                payload.correctAnswer = data.answers?.find(a => a.isCorrect)?.id === "true"
-            } else if (data.answers?.length) {
-                // For True/False or others using answers array but different backend structure if needed
-                // For now, mapping to options handles most cases or answerData
-                payload.answerData = { answers: data.answers }
+                payload.correctAnswer = data.answers?.find(a => a.isCorrect)?.id === "true" || false
+            } else if (data.type === 'matching') {
+                payload.matchingPairs = (data.answers || []).map((a, idx) => ({
+                    leftAr: a.text || `left-${idx}`,
+                    leftEn: a.text || `left-${idx}`,
+                    rightAr: a.explanation || `right-${idx}`,
+                    rightEn: a.explanation || `right-${idx}`
+                }))
+            } else if (data.type === 'ordering') {
+                payload.correctOrder = (data.answers || []).map(a => a.text || ' ')
+            } else if (data.type === 'fill_blank') {
+                payload.blankAnswers = (data.answers || []).map((a, idx) => ({
+                    order: idx + 1,
+                    textAr: a.text || ' ',
+                    textEn: a.text || ' ',
+                    isRegex: false,
+                    caseSensitive: false
+                }))
+            } else if (data.type === 'short_answer' || data.type === 'essay') {
+                payload.correctAnswers = [data.explanation || '']
             }
 
             if (editingQuestion?.id) {
@@ -306,8 +408,58 @@ export default function QuestionBankPage() {
         setIsEditorOpen(true)
     }
 
-    const handleEdit = (question: any) => {
-        setEditingQuestion(question)
+    const handleEdit = (questionRow: any) => {
+        const mappedQuestion: any = {
+            id: questionRow.id,
+            text: questionRow.questionAr || questionRow.questionEn,
+            type: questionRow.type,
+            difficulty: questionRow.difficulty,
+            taxonomy: questionRow.cognitiveLevel,
+            grade: questionRow.grade,
+            subject: questionRow.subject,
+            tags: questionRow.tags || [],
+            points: questionRow.points,
+            // Fallback empty array
+            answers: []
+        }
+
+        // Map backend specific fields back to frontend 'answers' array
+        if (questionRow.type === 'mcq' || questionRow.type === 'mcq_multi') {
+            mappedQuestion.answers = (questionRow.options || questionRow.answerData?.options || []).map((o: any) => ({
+                id: o.id || crypto.randomUUID(),
+                text: o.textAr || o.textEn || '',
+                isCorrect: o.isCorrect || false
+            }))
+        } else if (questionRow.type === 'true_false') {
+            mappedQuestion.answers = [
+                { id: "true", text: "صحيح", isCorrect: questionRow.correctAnswer === true || questionRow.answerData?.correctAnswer === true },
+                { id: "false", text: "خاطأ", isCorrect: questionRow.correctAnswer === false || questionRow.answerData?.correctAnswer === false }
+            ]
+        } else if (questionRow.type === 'matching') {
+            mappedQuestion.answers = (questionRow.matchingPairs || questionRow.answerData?.matchingPairs || []).map((m: any, idx: number) => ({
+                id: m.id || crypto.randomUUID(),
+                text: m.leftAr || m.leftEn || '',
+                explanation: m.rightAr || m.rightEn || '',
+                isCorrect: true
+            }))
+        } else if (questionRow.type === 'ordering') {
+            mappedQuestion.answers = (questionRow.correctOrder || questionRow.answerData?.correctOrder || []).map((val: string) => ({
+                id: crypto.randomUUID(),
+                text: val,
+                isCorrect: true
+            }))
+        } else if (questionRow.type === 'fill_blank') {
+            mappedQuestion.answers = (questionRow.blankAnswers || questionRow.answerData?.blankAnswers || []).map((b: any) => ({
+                id: crypto.randomUUID(),
+                text: b.textAr || b.textEn || '',
+                isCorrect: true
+            }))
+        } else if (questionRow.type === 'short_answer' || questionRow.type === 'essay') {
+            mappedQuestion.explanation = (questionRow.correctAnswers || questionRow.answerData?.correctAnswers || [])[0] || 
+                                          questionRow.correctAnswer || questionRow.answerData?.correctAnswer || ''
+        }
+
+        setEditingQuestion(mappedQuestion)
         setIsEditorOpen(true)
     }
 
@@ -442,16 +594,44 @@ export default function QuestionBankPage() {
     }
 
     return (
-        <div className="flex-1 space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row gap-6 flex-1 min-h-[calc(100vh-2rem)]">
+            <div className="w-full md:w-64 lg:w-72 shrink-0">
+                <QuestionBanksSidebar 
+                    selectedBankId={selectedBankId}
+                    onSelectBank={(id, name) => {
+                        setSelectedBankId(id)
+                        setSelectedBankName(name)
+                        setPage(1)
+                    }}
+                    canManage={canManageQuestionBank}
+                />
+            </div>
+            
+            <div className="flex-1 space-y-6 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight font-cairo">بنك الأسئلة</h2>
+                    <h2 className="text-3xl font-bold tracking-tight font-cairo">
+                        بنك الأسئلة
+                        {selectedBankName && <span className="text-primary mr-2 text-xl font-normal">/ {selectedBankName}</span>}
+                    </h2>
                     <p className="text-muted-foreground">المخزن المركزي للأسئلة المصنفة حسب المعايير التعليمية</p>
                 </div>
-                <Button className="gap-2" variant="emerald" onClick={handleCreateNew}>
-                    <Plus className="h-4 w-4" />
-                    إضافة سؤال جديد
-                </Button>
+                <div className="flex items-center gap-2">
+                    {activeTab === "questions" && (
+                        <Button
+                            variant={isDragMode ? "default" : "outline"}
+                            className="gap-2"
+                            onClick={() => setIsDragMode(!isDragMode)}
+                        >
+                            <ArrowUpDown className="h-4 w-4" />
+                            {isDragMode ? "إنهاء وضع الترتيب" : "وضع الترتيب"}
+                        </Button>
+                    )}
+                    <Button className="gap-2" variant="emerald" onClick={handleCreateNew}>
+                        <Plus className="h-4 w-4" />
+                        إضافة سؤال جديد
+                    </Button>
+                </div>
             </div>
 
             {errorMessage ? (
@@ -572,8 +752,16 @@ export default function QuestionBankPage() {
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground bg-card border rounded-lg px-4 py-3">
-                <div>
+            <Tabs defaultValue="questions" value={activeTab} onValueChange={(v) => setActiveTab(v as "questions" | "analytics")} className="w-full">
+                <TabsList className="mb-4">
+                    <TabsTrigger value="questions">الأسئلة</TabsTrigger>
+                    <TabsTrigger value="analytics">التحليلات 📊</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="questions" className="space-y-4 m-0">
+                    {!isDragMode && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground bg-card border rounded-lg px-4 py-3">
+                            <div>
                     عرض {startItem}-{endItem} من أصل {total} سؤال
                 </div>
                 <div className="flex items-center gap-2">
@@ -590,8 +778,15 @@ export default function QuestionBankPage() {
                     </Select>
                 </div>
             </div>
+        )}
 
-            {/* Questions Table (Desktop) */}
+        {isDragMode && (
+            <div className="bg-primary/10 border-primary/20 text-primary px-4 py-3 rounded-lg border text-sm font-medium flex items-center justify-between">
+                <span>وضع الترتيب نشط — يمكنك سحب الأسئلة لإعادة ترتيبها (يعمل على الصفحة الحالية فقط).</span>
+            </div>
+        )}
+
+        {/* Questions Table (Desktop) */}
             <div className="hidden md:block bg-card rounded-lg border shadow-sm overflow-hidden">
                 <Table>
                     <TableHeader>
@@ -608,9 +803,11 @@ export default function QuestionBankPage() {
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
-                    <TableBody>
-                        {questions.length > 0 ? questions.map((q) => (
-                            <TableRow key={q.id}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <TableBody>
+                            <SortableContext items={questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                                {questions.length > 0 ? questions.map((q) => (
+                                    <SortableQuestionRow key={q.id} id={q.id} isDragMode={isDragMode}>
                                 <TableCell className="font-mono text-xs text-muted-foreground">{q.id}</TableCell>
                                 <TableCell>
                                     <div className="font-medium line-clamp-2" title={q.text}>{q.text}</div>
@@ -674,9 +871,9 @@ export default function QuestionBankPage() {
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </TableCell>
-                            </TableRow>
-                        )) : (
-                            <TableRow>
+                                    </SortableQuestionRow>
+                                )) : (
+                                    <TableRow>
                                 <TableCell colSpan={10} className="h-24">
                                     <EmptyState
                                         icon={Search}
@@ -688,12 +885,15 @@ export default function QuestionBankPage() {
                                 </TableCell>
                             </TableRow>
                         )}
-                    </TableBody>
+                            </SortableContext>
+                        </TableBody>
+                    </DndContext>
                 </Table>
             </div>
 
             {/* Questions Cards (Mobile) */}
-            <div className="md:hidden space-y-3">
+            {!isDragMode && (
+                <div className="md:hidden space-y-3">
                 {questions.length > 0 ? questions.map((q) => (
                     <div key={q.id} className="rounded-lg border bg-card p-4 shadow-sm">
                         <div className="flex items-start justify-between gap-3">
@@ -740,10 +940,12 @@ export default function QuestionBankPage() {
                         />
                     </div>
                 )}
-            </div>
+                </div>
+            )}
 
-            <div className="flex items-center justify-end gap-2" aria-label="التنقل بين صفحات بنك الأسئلة">
-                <Button
+            {!isDragMode && (
+                <div className="flex items-center justify-end gap-2" aria-label="التنقل بين صفحات بنك الأسئلة">
+                    <Button
                     variant="outline"
                     disabled={!canGoPrev || loading}
                     onClick={() => setPage(prev => Math.max(1, prev - 1))}
@@ -761,16 +963,28 @@ export default function QuestionBankPage() {
                     التالي
                 </Button>
             </div>
+            )}
 
             {facetsLoading ? (
                 <div className="text-xs text-muted-foreground" aria-live="polite">يتم تحديث إحصاءات الفلاتر...</div>
             ) : null}
+            </TabsContent>
+
+            <TabsContent value="analytics" className="mt-0">
+                <QuestionAnalyticsDashboard
+                    data={analyticsData}
+                    isLoading={isAnalyticsLoading}
+                    onEditQuestion={(id) => handleEdit(questions.find(q => q.id === id)!)}
+                />
+            </TabsContent>
+        </Tabs>
 
             <QuestionEditor
                 open={isEditorOpen}
                 onOpenChange={setIsEditorOpen}
                 question={editingQuestion}
                 onSave={handleSaveQuestion}
+                defaultCategoryId={selectedBankId}
             />
 
             <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -787,6 +1001,7 @@ export default function QuestionBankPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            </div>
         </div>
     )
 }
