@@ -91,7 +91,8 @@ export function QuestionEditor({
     })
 
     // Watch question type to dynamically render answer fields
-    const questionType = form.watch("type")
+    const rawQuestionType = form.watch("type")
+    const questionType = String(rawQuestionType || "").toLowerCase()
 
     const onSubmit = (data: QuestionFormValues) => {
         onSave(data)
@@ -294,7 +295,7 @@ export function QuestionEditor({
                                             variant="ghost"
                                             size="sm"
                                             className="h-8 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                                            onClick={() => append({ id: crypto.randomUUID(), text: "", isCorrect: false })}
+                                            onClick={() => append({ id: String(Date.now() + Math.random()), text: "", isCorrect: false })}
                                         >
                                             <Plus className="w-3 h-3 mr-1" /> إضافة خيار جديد
                                         </Button>
@@ -464,7 +465,7 @@ export function QuestionEditor({
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <p className="text-sm text-slate-500">أدخل العناصر بالترتيب الصحيح (من الأول إلى الأخير).</p>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: crypto.randomUUID(), text: "", isCorrect: true })}>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: String(Date.now() + Math.random()), text: "", isCorrect: true })}>
                                                     <Plus className="w-4 h-4 mr-1" /> إضافة عنصر
                                                 </Button>
                                             </div>
@@ -499,7 +500,7 @@ export function QuestionEditor({
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <p className="text-sm text-slate-500">أدخل الأزواج المتطابقة (العمود الأول مع العمود الثاني).</p>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: crypto.randomUUID(), text: "", explanation: "", isCorrect: true })}>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: String(Date.now() + Math.random()), text: "", explanation: "", isCorrect: true })}>
                                                     <Plus className="w-4 h-4 mr-1" /> إضافة زوج
                                                 </Button>
                                             </div>
@@ -547,7 +548,7 @@ export function QuestionEditor({
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <p className="text-sm text-slate-500">أضف الفراغات بالترتيب الذي تظهر به في النص المكتوب أعلاه.</p>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: crypto.randomUUID(), text: "", isCorrect: true })}>
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => append({ id: String(Date.now() + Math.random()), text: "", isCorrect: true })}>
                                                     <Plus className="w-4 h-4 mr-1" /> إضافة فراغ
                                                 </Button>
                                             </div>
