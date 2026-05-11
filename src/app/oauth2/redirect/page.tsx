@@ -13,6 +13,7 @@ function OAuthRedirectHandler() {
         const handleOAuth = async () => {
             const accessToken = searchParams.get('accessToken');
             const refreshToken = searchParams.get('refreshToken'); // if provided
+            const redirectTo = searchParams.get('redirect'); // post-login destination
 
             if (accessToken) {
                 // Here we store the token. 
@@ -30,11 +31,13 @@ function OAuthRedirectHandler() {
                 }
 
                 toast.success('تم تسجيل الدخول بنجاح', {      
-                    description: 'جاري تحويلك للصفحة الرئيسية...',
+                    description: 'جاري تحويلك...',
                 });
 
+                // Redirect to the original destination if provided, else dashboard
+                const destination = (redirectTo && redirectTo.startsWith('/')) ? redirectTo : '/dashboard';
                 // Use window.location.href to force a full reload and re-initialize AuthContext
-                window.location.href = '/dashboard';
+                window.location.href = destination;
             } else {
                 toast.error('حدث خطأ أثناء تسجيل الدخول', {
                     description: 'لم يتم العثور على بيانات الاعتماد',
