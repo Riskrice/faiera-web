@@ -34,8 +34,20 @@ function OAuthRedirectHandler() {
                     description: 'جاري تحويلك...',
                 });
 
-                // Redirect to the original destination if provided, else dashboard
-                const destination = (redirectTo && redirectTo.startsWith('/')) ? redirectTo : '/dashboard';
+                // Determine redirect destination (priority order):
+                // 1. sessionStorage (saved by enrollment-card before login flow)
+                // 2. URL search param (passed by backend if available)
+                // 3. Default to /student dashboard
+                let destination = '/student';
+
+                const savedRedirect = sessionStorage.getItem('faiera_post_login_redirect');
+                if (savedRedirect && savedRedirect.startsWith('/')) {
+                    destination = savedRedirect;
+                    sessionStorage.removeItem('faiera_post_login_redirect');
+                } else if (redirectTo && redirectTo.startsWith('/')) {
+                    destination = redirectTo;
+                }
+
                 // Use window.location.href to force a full reload and re-initialize AuthContext
                 window.location.href = destination;
             } else {

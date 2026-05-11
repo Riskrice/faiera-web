@@ -267,6 +267,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const getRedirectUrl = (defaultUrl: string): string => {
         if (typeof window !== 'undefined') {
+            // 1. Check sessionStorage first (set before login/register flow began)
+            const savedRedirect = sessionStorage.getItem('faiera_post_login_redirect');
+            if (savedRedirect && savedRedirect.startsWith('/')) {
+                sessionStorage.removeItem('faiera_post_login_redirect');
+                return savedRedirect;
+            }
+            // 2. Fallback to URL query param
             const params = new URLSearchParams(window.location.search);
             const redirect = params.get('redirect');
             if (redirect && redirect.startsWith('/')) {

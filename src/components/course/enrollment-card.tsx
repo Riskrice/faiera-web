@@ -147,6 +147,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
         if (!promoCode.trim()) return;
         if (!accessToken) {
             toast.error('يجب تسجيل الدخول أولاً');
+            sessionStorage.setItem('faiera_post_login_redirect', `/courses/${course.id}`);
             router.push(`/login?redirect=/courses/${course.id}`);
             return;
         }
@@ -177,6 +178,8 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
         if (!user || !accessToken) {
             console.log('User not logged in, redirecting...');
             toast.error('يجب تسجيل الدخول أولاً');
+            // Save intended destination so ANY login method can redirect back
+            sessionStorage.setItem('faiera_post_login_redirect', `/courses/${course.id}`);
             router.push(`/login?redirect=/courses/${course.id}`);
             return;
         }
