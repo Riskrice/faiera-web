@@ -1,13 +1,14 @@
-import { LoginForm } from '@/components/auth/login-form';
-import { Metadata } from 'next';
-import Link from 'next/link';
+'use client';
 
-export const metadata: Metadata = {
-    title: 'تسجيل الدخول - Faiera',
-    description: 'قم بتسجيل الدخول إلى حسابك في منصة فاير التعليمية',
-};
+import { LoginForm } from '@/components/auth/login-form';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
+    const searchParams = useSearchParams();
+    const redirect = searchParams.get('redirect') || '';
+    const registerHref = redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register';
+
     return (
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
             <div className="flex flex-col space-y-2 text-center">
@@ -20,7 +21,7 @@ export default function LoginPage() {
             <p className="px-8 text-center text-sm text-muted-foreground">
                 ليس لديك حساب؟{' '}
                 <Link
-                    href="/register"
+                    href={registerHref}
                     className="underline hover:text-primary underline-offset-4"
                 >
                     إنشاء حساب جديد

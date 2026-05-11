@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SecurePlayer } from '@/components/video/secure-player';
-import { checkEnrollment, enrollFreeCourse } from '@/lib/api';
+import { checkEnrollment, enrollFreeCourse, validatePromoCode } from '@/lib/api';
+import { Input } from '@/components/ui/input';
 
 interface EnrollmentCardProps {
     course: Course;
@@ -29,6 +30,12 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
     const [showPreview, setShowPreview] = useState(false);
     const [isEnrolled, setIsEnrolled] = useState(false);
     const [checkingEnrollment, setCheckingEnrollment] = useState(false);
+
+    // Promo Code State
+    const [promoCode, setPromoCode] = useState('');
+    const [promoResult, setPromoResult] = useState<any>(null);
+    const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+    const [promoError, setPromoError] = useState('');
 
     // Find first free video lesson for preview
     const previewLessonId = course.curriculum?.find(chapter =>
@@ -136,6 +143,33 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
         }
     };
 
+    const handleApplyPromo = async () => {
+        if (!promoCode.trim()) return;
+        if (!accessToken) {
+            toast.error('يجب تسجيل الدخول أولاً');
+            router.push(`/login?redirect=/courses/${course.id}`);
+            return;
+        }
+        setIsValidatingPromo(true);
+        setPromoError('');
+        setPromoResult(null);
+        try {
+            const res = await validatePromoCode(promoCode, course.price, { courseId: course.id }, accessToken);
+            setPromoResult((res as any)?.data);
+            toast.success('تم تطبيق كود الخصم بنجاح');
+        } catch (error: any) {
+            setPromoError(error.message || 'كود الخصم غير صالح');
+        } finally {
+            setIsValidatingPromo(false);
+        }
+    };
+
+    const handleRemovePromo = () => {
+        setPromoCode('');
+        setPromoResult(null);
+        setPromoError('');
+    };
+
     const handleEnroll = async () => {
         if (authLoading) return; // Wait for auth check
 
@@ -178,10 +212,11 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                     item_id: course.id,
                     item_name: course.titleEn || course.titleAr || course.title,
                     item_category: 'course',
-                    price: course.price,
+                    price: promoResult ? promoResult.finalAmount : course.price,
                     quantity: 1,
                 },
             ],
+            promo_code: promoResult?.code,
         };
 
         rememberPendingCheckout(checkoutPayload);
@@ -196,6 +231,7 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
                 },
+                body: JSON.stringify(promoResult ? { promoCode: promoResult.code } : {}),
             });
 
             if (!response.ok) {
@@ -206,7 +242,12 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
             const result = await response.json();
             const paymentUrl = result.data?.paymentUrl;
 
-            if (paymentUrl) {
+            if (result.data?.isFree) {
+                // 100% discount — enrolled for free
+                toast.success('تم الاشتراك في الكورس مجانًا بفضل كود الخصم! 🎉');
+                setIsEnrolled(true);
+                router.push(`/courses/${course.id}/learn`);
+            } else if (paymentUrl) {
                 // Redirect to payment gateway
                 window.location.href = paymentUrl;
             } else {
@@ -257,18 +298,68 @@ export function EnrollmentCard({ course }: EnrollmentCardProps) {
 
             <div className="p-4 md:p-6 space-y-5 md:space-y-6">
                 {/* Price */}
-                <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-                    <span className="text-2xl md:text-3xl font-black text-foreground font-sans">{course.price} {course.currency || 'EGP'}</span>
-                    <span className="text-base md:text-lg text-muted-foreground line-through font-sans decoration-destructive/50 mb-1">
-                        {(course.price * 1.5).toFixed(0)} {course.currency || 'EGP'}
-                    </span>
-                    <span className="mr-auto text-[11px] md:text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md">
-                        خصم 33% لفترة محدودة
-                    </span>
+                <div className="flex flex-col gap-y-2">
+                    {promoResult ? (
+                        <>
+                            <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                                <span className="text-2xl md:text-3xl font-black text-foreground font-sans">
+                                    {promoResult.finalAmount} {course.currency || 'EGP'}
+                                </span>
+                                <span className="text-base md:text-lg text-muted-foreground line-through font-sans decoration-destructive/50 mb-1">
+                                    {course.price} {course.currency || 'EGP'}
+                                </span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                            <span className="text-2xl md:text-3xl font-black text-foreground font-sans">{course.price} {course.currency || 'EGP'}</span>
+                            <span className="text-base md:text-lg text-muted-foreground line-through font-sans decoration-destructive/50 mb-1">
+                                {(course.price * 1.5).toFixed(0)} {course.currency || 'EGP'}
+                            </span>
+                            <span className="mr-auto text-[11px] md:text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md">
+                                خصم 33% لفترة محدودة
+                            </span>
+                        </div>
+                    )}
                 </div>
 
-                {/* Actions */}
-                <div className="space-y-3">
+                {/* Promo Code & Actions */}
+                <div className="space-y-4">
+                    {!isEnrolled && (
+                        <div className="space-y-2 pt-2 border-t border-border">
+                            {!promoResult ? (
+                                <div className="flex gap-2">
+                                    <Input 
+                                        placeholder="لديك كود خصم؟" 
+                                        value={promoCode}
+                                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                        className="font-mono text-sm h-10"
+                                        onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                                    />
+                                    <Button 
+                                        variant="secondary" 
+                                        onClick={handleApplyPromo}
+                                        disabled={isValidatingPromo || !promoCode.trim()}
+                                        className="h-10 px-6 font-bold"
+                                    >
+                                        {isValidatingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : 'تطبيق'}
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 p-3 rounded-lg flex items-center justify-between text-sm border border-green-200 dark:border-green-800">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold flex items-center gap-1">
+                                            <CheckCircle2 className="w-4 h-4" /> تم تطبيق الكود {promoResult.code}
+                                        </span>
+                                        <span>خصم {promoResult.discountAmount} {course.currency || 'EGP'}</span>
+                                    </div>
+                                    <button onClick={handleRemovePromo} className="text-green-700/70 hover:text-green-700 dark:text-green-400/70 dark:hover:text-green-400 underline text-xs font-bold">إلغاء</button>
+                                </div>
+                            )}
+                            {promoError && <p className="text-red-500 text-xs mt-1 font-medium">{promoError}</p>}
+                        </div>
+                    )}
+
                     <Button
                         onClick={handleEnroll}
                         disabled={isLoading || authLoading || checkingEnrollment}

@@ -1222,3 +1222,132 @@ export async function getQuestionAnalytics(params?: { categoryId?: string; grade
     if (params?.subject) query.append('subject', params.subject);
     return api.get<{ data: QuestionAnalytics }>(`/questions/analytics${query.toString() ? `?${query.toString()}` : ''}`);
 }
+
+/* ============================================================== */
+/*  Promo Codes API                                               */
+/* ============================================================== */
+
+export type DiscountType = 'percentage' | 'fixed_amount';
+export type PromoCodeScope = 'global' | 'course' | 'plan';
+
+export interface PromoCode {
+    id: string;
+    code: string;
+    discountType: DiscountType;
+    discountValue: number;
+    maxDiscountCap?: number;
+    minOrderAmount?: number;
+    scope: PromoCodeScope;
+    scopeReferenceId?: string;
+    maxTotalUses?: number;
+    maxUsesPerUser: number;
+    currentUses: number;
+    startsAt: string;
+    expiresAt?: string;
+    isActive: boolean;
+    createdBy: string;
+    campaignTag?: string;
+    descriptionInternal?: string;
+    deactivatedAt?: string;
+    deactivatedBy?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface PromoCodeValidationResult {
+    promoCodeId: string;
+    code: string;
+    discountAmount: number;
+    finalAmount: number;
+    originalAmount: number;
+}
+
+export interface PromoCodeAnalytics {
+    totalCodes: number;
+    activeCodes: number;
+    totalUses: number;
+    totalDiscountAmount: number;
+    topCodes: PromoCode[];
+}
+
+export interface CreatePromoCodeInput {
+    code: string;
+    discountType: DiscountType;
+    discountValue: number;
+    maxDiscountCap?: number;
+    minOrderAmount?: number;
+    scope: PromoCodeScope;
+    scopeReferenceId?: string;
+    maxTotalUses?: number;
+    maxUsesPerUser?: number;
+    startsAt: string;
+    expiresAt?: string;
+    isActive?: boolean;
+    campaignTag?: string;
+    descriptionInternal?: string;
+}
+
+export interface GeneratePromoCodesInput extends Omit<CreatePromoCodeInput, 'code'> {
+    count: number;
+    prefix?: string;
+    codeLength?: number;
+}
+
+export async function getPromoCodes(params?: {
+    search?: string;
+    scope?: PromoCodeScope;
+    isActive?: boolean;
+    campaignTag?: string;
+    page?: number;
+    limit?: number;
+}, token?: string) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.scope) query.append('scope', params.scope);
+    if (params?.isActive !== undefined) query.append('isActive', String(params.isActive));
+    if (params?.campaignTag) query.append('campaignTag', params.campaignTag);
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    return api.get<any>(`/promo-codes${query.toString() ? `?${query.toString()}` : ''}`, { token });
+}
+
+export async function getPromoCodeById(id: string, token?: string) {
+    return api.get<{ data: PromoCode }>(`/promo-codes/${id}`, { token });
+}
+
+export async function createPromoCode(data: CreatePromoCodeInput, token?: string) {
+    return api.post<{ data: PromoCode }>('/promo-codes', data, { token });
+}
+
+export async function generatePromoCodes(data: GeneratePromoCodesInput, token?: string) {
+    return api.post<{ data: PromoCode[] }>('/promo-codes/generate', data, { token });
+}
+
+export async function updatePromoCode(id: string, data: Partial<CreatePromoCodeInput>, token?: string) {
+    return api.patch<{ data: PromoCode }>(`/promo-codes/${id}`, data, { token });
+}
+
+export async function deactivatePromoCode(id: string, token?: string) {
+    return api.patch<{ data: PromoCode }>(`/promo-codes/${id}/deactivate`, {}, { token });
+}
+
+export async function reactivatePromoCode(id: string, token?: string) {
+    return api.patch<{ data: PromoCode }>(`/promo-codes/${id}/reactivate`, {}, { token });
+}
+
+export async function validatePromoCode(
+    code: string,
+    amount: number,
+    context: { courseId?: string; planId?: string },
+    token?: string
+) {
+    return api.post<{ data: PromoCodeValidationResult }>('/promo-codes/validate', { code, amount, ...context }, { token });
+}
+
+export async function getPromoCodeAnalytics(token?: string) {
+    return api.get<{ data: PromoCodeAnalytics }>('/promo-codes/analytics', { token });
+}
+
+export async function getPromoCodeRedemptions(id: string, page = 1, limit = 10, token?: string) {
+    return api.get<any>(`/promo-codes/${id}/redemptions?page=${page}&limit=${limit}`, { token });
+}

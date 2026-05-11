@@ -40,6 +40,8 @@ export function RegisterForm() {
     const [isLoading, setIsLoading] = React.useState(false);
     const { signUp } = useAuth();
     const router = useRouter();
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const redirectParam = searchParams?.get('redirect') || '';
 
     // Watch password for strength meter
     const [passwordStrength, setPasswordStrength] = React.useState(0);
@@ -87,7 +89,8 @@ export function RegisterForm() {
                 description: 'تم إنشاء الحساب بنجاح. تم إرسال رسالة ترحيب إلى بريدك الإلكتروني.',
             });
             form.reset();
-            router.push('/login');
+            const loginUrl = redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login';
+            router.push(loginUrl);
         }
     }
 
@@ -269,7 +272,11 @@ export function RegisterForm() {
                 disabled={isLoading} 
                 className="h-11"
                 onClick={() => {
-                    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/auth/google`;
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+                    const googleUrl = redirectParam
+                        ? `${apiUrl}/auth/google?redirect=${encodeURIComponent(redirectParam)}`
+                        : `${apiUrl}/auth/google`;
+                    window.location.href = googleUrl;
                 }}
             >
                 <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">

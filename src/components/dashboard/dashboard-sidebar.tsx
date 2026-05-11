@@ -28,6 +28,7 @@ import {
     FileText,
     Heart,
     Compass,
+    Ticket,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -51,6 +52,7 @@ const adminItems: SidebarItem[] = [
     { title: 'الاختبارات', href: '/dashboard/assessments', icon: Trophy },
     { title: 'بنك الأسئلة', href: '/dashboard/question-bank', icon: BrainCircuit },
     { title: 'الاشتراكات', href: '/dashboard/subscriptions', icon: BarChart3 },
+    { title: 'أكواد الخصم', href: '/dashboard/promo-codes', icon: Ticket },
     { title: 'التحليلات', href: '/dashboard/analytics', icon: LineChart },
     { title: 'الإعدادات', href: '/dashboard/settings', icon: Settings },
 ];

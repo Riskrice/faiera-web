@@ -171,7 +171,14 @@ export function LoginForm() {
                 disabled={isLoading} 
                 className="h-11"
                 onClick={() => {
-                    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/auth/google`;
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+                    const redirectParam = typeof window !== 'undefined'
+                        ? new URLSearchParams(window.location.search).get('redirect') || ''
+                        : '';
+                    const googleUrl = redirectParam
+                        ? `${apiUrl}/auth/google?redirect=${encodeURIComponent(redirectParam)}`
+                        : `${apiUrl}/auth/google`;
+                    window.location.href = googleUrl;
                 }}
             >
                 <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">

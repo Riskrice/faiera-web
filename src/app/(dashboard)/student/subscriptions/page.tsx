@@ -4,10 +4,13 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Check, Loader2, Sparkles, Star, Zap } from "lucide-react"
+import { Check, Loader2, Sparkles, Star, Zap, Ticket, XCircle, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts"
 import { rememberPendingCheckout, trackEvent } from "@/lib/gtm"
+import { validatePromoCode } from "@/lib/api"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 type Plan = {
     id: string
@@ -29,6 +32,13 @@ export default function StudentSubscriptionsPage() {
     const [plans, setPlans] = useState<Plan[]>([])
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
+    
+    // Checkout Dialog State
+    const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null)
+    const [promoCode, setPromoCode] = useState("")
+    const [promoResult, setPromoResult] = useState<any>(null)
+    const [isValidatingPromo, setIsValidatingPromo] = useState(false)
+    const [promoError, setPromoError] = useState("")
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"
 
@@ -61,40 +71,66 @@ export default function StudentSubscriptionsPage() {
         fetchPlans()
     }, [apiUrl])
 
-    const handleSubscribe = async (plan: Plan) => {
+    const handleSubscribeClick = (plan: Plan) => {
         if (!accessToken) {
             toast.error("يجب تسجيل الدخول أولاً")
             return
         }
+        setCheckoutPlan(plan)
+        setPromoCode("")
+        setPromoResult(null)
+        setPromoError("")
+    }
+
+    const handleApplyPromo = async () => {
+        if (!promoCode.trim() || !checkoutPlan || !accessToken) return
+        setIsValidatingPromo(true)
+        setPromoError("")
+        setPromoResult(null)
+        try {
+            const res = await validatePromoCode(promoCode, checkoutPlan.price, { planId: checkoutPlan.id }, accessToken)
+            setPromoResult((res as any)?.data)
+            toast.success("تم تطبيق كود الخصم بنجاح")
+        } catch (error: any) {
+            setPromoError(error.message || "كود الخصم غير صالح")
+        } finally {
+            setIsValidatingPromo(false)
+        }
+    }
+
+    const handleConfirmCheckout = async () => {
+        if (!checkoutPlan || !accessToken) return
 
         const checkoutPayload = {
             checkout_type: 'subscription',
-            currency: plan.currency,
-            value: plan.price,
+            currency: checkoutPlan.currency,
+            value: promoResult ? promoResult.finalAmount : checkoutPlan.price,
             items: [
                 {
-                    item_id: plan.id,
-                    item_name: plan.nameEn || plan.nameAr,
+                    item_id: checkoutPlan.id,
+                    item_name: checkoutPlan.nameEn || checkoutPlan.nameAr,
                     item_category: 'subscription',
-                    price: plan.price,
+                    price: promoResult ? promoResult.finalAmount : checkoutPlan.price,
                     quantity: 1,
                 },
             ],
+            promo_code: promoResult?.code,
         }
 
         rememberPendingCheckout(checkoutPayload)
         trackEvent('begin_checkout', checkoutPayload)
 
         try {
-            setActionLoading(plan.id)
+            setActionLoading(checkoutPlan.id)
             const loadingId = toast.loading("جاري تحويلك لبوابة الدفع...")
 
-            const response = await fetch(`${apiUrl}/payments/checkout/subscription/${plan.id}`, {
+            const response = await fetch(`${apiUrl}/payments/checkout/subscription/${checkoutPlan.id}`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${accessToken}`,
                     "Content-Type": "application/json",
                 },
+                body: JSON.stringify(promoResult ? { promoCode: promoResult.code } : {}),
             })
 
             const data = await response.json()
@@ -103,7 +139,15 @@ export default function StudentSubscriptionsPage() {
                 throw new Error(data.message || "فشل بدء عملية الدفع")
             }
 
-            if (data.data?.paymentUrl) {
+            if (data.data?.isFree) {
+                toast.dismiss(loadingId)
+                toast.success("تم الاشتراك بنجاح بفضل كود الخصم! 🎉")
+                setCheckoutPlan(null)
+                // Refresh the page to show active subscription
+                setTimeout(() => {
+                    window.location.reload()
+                }, 1500)
+            } else if (data.data?.paymentUrl) {
                 toast.dismiss(loadingId)
                 window.location.href = data.data.paymentUrl
             } else {
@@ -210,7 +254,7 @@ export default function StudentSubscriptionsPage() {
                                         }`}
                                     size="lg"
                                     variant={plan.isPopular ? "default" : "outline"}
-                                    onClick={() => handleSubscribe(plan)}
+                                    onClick={() => handleSubscribeClick(plan)}
                                     disabled={!!actionLoading}
                                 >
                                     {actionLoading === plan.id ? (
@@ -230,6 +274,100 @@ export default function StudentSubscriptionsPage() {
                     ))}
                 </div>
             )}
+
+            {/* Checkout Dialog */}
+            <Dialog open={!!checkoutPlan} onOpenChange={(open) => !open && setCheckoutPlan(null)}>
+                <DialogContent className="sm:max-w-md font-cairo">
+                    <div dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl">تأكيد الاشتراك</DialogTitle>
+                        <DialogDescription>
+                            أنت على وشك الاشتراك في باقة {checkoutPlan?.nameAr}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-6 py-4">
+                        <div className="flex justify-between items-center bg-muted/30 p-4 rounded-xl">
+                            <span className="font-semibold">سعر الباقة:</span>
+                            <span className={`text-lg font-bold ${promoResult ? 'line-through text-muted-foreground' : ''}`}>
+                                {checkoutPlan?.price} {checkoutPlan?.currency}
+                            </span>
+                        </div>
+
+                        {/* Promo Code Section */}
+                        <div className="space-y-3 border-t border-b border-border py-4">
+                            <div className="flex items-center gap-2 text-sm font-semibold mb-2">
+                                <Ticket className="w-4 h-4" /> هل لديك كود خصم؟
+                            </div>
+                            
+                            {!promoResult ? (
+                                <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="أدخل كود الخصم"
+                                            value={promoCode}
+                                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                                            className="font-mono text-center tracking-wider uppercase"
+                                        />
+                                        <Button 
+                                            variant="secondary" 
+                                            onClick={handleApplyPromo}
+                                            disabled={isValidatingPromo || !promoCode.trim()}
+                                            className="px-6"
+                                        >
+                                            {isValidatingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : "تطبيق"}
+                                        </Button>
+                                    </div>
+                                    {promoError && <p className="text-red-500 text-xs mt-1 font-medium">{promoError}</p>}
+                                </div>
+                            ) : (
+                                <div className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 p-3 rounded-xl flex items-center justify-between text-sm border border-green-200 dark:border-green-800">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="font-bold flex items-center gap-1.5">
+                                            <CheckCircle2 className="w-4 h-4" /> تم تطبيق {promoResult.code} بنجاح
+                                        </span>
+                                        <span>وفرت {promoResult.discountAmount} {checkoutPlan?.currency}</span>
+                                    </div>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => {
+                                            setPromoCode("")
+                                            setPromoResult(null)
+                                        }}
+                                        className="h-8 px-2 text-green-700 hover:text-green-800 hover:bg-green-100 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/40"
+                                    >
+                                        إلغاء
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/10">
+                            <span className="font-bold text-lg">الإجمالي النهائي:</span>
+                            <span className="text-2xl font-black text-primary">
+                                {promoResult ? promoResult.finalAmount : checkoutPlan?.price} {checkoutPlan?.currency}
+                            </span>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
+                        <Button variant="outline" onClick={() => setCheckoutPlan(null)} className="w-full sm:w-auto">
+                            إلغاء
+                        </Button>
+                        <Button 
+                            onClick={handleConfirmCheckout} 
+                            disabled={!!actionLoading}
+                            className="w-full sm:w-auto gap-2 text-lg h-11"
+                        >
+                            {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 fill-current" />}
+                            متابعة الدفع
+                        </Button>
+                    </DialogFooter>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
