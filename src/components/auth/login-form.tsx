@@ -176,7 +176,7 @@ export function LoginForm() {
                         ? new URLSearchParams(window.location.search).get('redirect') || ''
                         : '';
                     const googleUrl = redirectParam
-                        ? `${apiUrl}/auth/google?redirect=${encodeURIComponent(redirectParam)}`
+                        ? `${apiUrl}/auth/google/init?redirect=${encodeURIComponent(redirectParam)}`
                         : `${apiUrl}/auth/google`;
                     window.location.href = googleUrl;
                 }}

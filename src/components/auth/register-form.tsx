@@ -274,7 +274,7 @@ export function RegisterForm() {
                 onClick={() => {
                     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
                     const googleUrl = redirectParam
-                        ? `${apiUrl}/auth/google?redirect=${encodeURIComponent(redirectParam)}`
+                        ? `${apiUrl}/auth/google/init?redirect=${encodeURIComponent(redirectParam)}`
                         : `${apiUrl}/auth/google`;
                     window.location.href = googleUrl;
                 }}
