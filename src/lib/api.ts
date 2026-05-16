@@ -659,22 +659,23 @@ export interface Course {
 
 export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
-export async function getCourses(params?: { limit?: number; sort?: string; search?: string; category?: string; level?: string; teacherId?: string }) {
-    // Should map params to query string
+export async function getCourses(params?: { limit?: number; pageSize?: number; sort?: string; search?: string; category?: string; level?: string; teacherId?: string }) {
     const query = new URLSearchParams();
-    if (params?.limit) {
-        // Backend validation allows up to 100 only.
-        const safeLimit = Math.min(Math.max(params.limit, 1), 100);
-        query.append('pageSize', safeLimit.toString()); // Map limit to pageSize
+    const size = params?.pageSize ?? params?.limit;
+    if (size) {
+        const safeSize = Math.min(Math.max(size, 1), 100);
+        query.append('pageSize', safeSize.toString());
     }
     if (params?.search) query.append('search', params.search);
     if (params?.category) query.append('category', params.category);
     if (params?.level) query.append('level', params.level);
     if (params?.teacherId) query.append('teacherId', params.teacherId);
-    // Add other params as needed
 
-    // Using the generic get method
     return api.get<{ data: Course[], meta: any }>(`/content/courses?${query.toString()}`);
+}
+
+export async function getSubscriptionPlans(token?: string) {
+    return api.get<{ data: any[] }>('/subscriptions/plans', { token });
 }
 
 export async function getCourseById(id: string, token?: string) {
@@ -1333,6 +1334,10 @@ export async function deactivatePromoCode(id: string, token?: string) {
 
 export async function reactivatePromoCode(id: string, token?: string) {
     return api.patch<{ data: PromoCode }>(`/promo-codes/${id}/reactivate`, {}, { token });
+}
+
+export async function deletePromoCode(id: string, token?: string) {
+    return api.delete<{ data: null }>(`/promo-codes/${id}`, { token });
 }
 
 export async function validatePromoCode(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -21,11 +21,11 @@ import { Switch } from '@/components/ui/switch';
 import {
     Ticket, Plus, Search, Copy, CheckCircle2, XCircle, RefreshCw,
     Loader2, Zap, TrendingUp, Users, BadgePercent, ToggleLeft, ToggleRight,
-    AlertCircle, Clock, Shuffle
+    AlertCircle, Clock, Shuffle, Trash2, BookOpen, Package, ChevronDown, X
 } from 'lucide-react';
 import {
     getPromoCodes, createPromoCode, generatePromoCodes, deactivatePromoCode,
-    reactivatePromoCode, getPromoCodeAnalytics,
+    reactivatePromoCode, deletePromoCode, getPromoCodeAnalytics, getCourses, getSubscriptionPlans,
     type PromoCode, type PromoCodeAnalytics, type CreatePromoCodeInput, type GeneratePromoCodesInput
 } from '@/lib/api';
 
@@ -35,6 +35,128 @@ const SCOPE_COLORS: Record<string, string> = {
     course: 'bg-purple-100 text-purple-700',
     plan: 'bg-amber-100 text-amber-700'
 };
+
+// ─── Searchable Entity Picker ────────────────────────────────────────────────
+function SearchableEntityPicker({
+    type, items, loading, value, onChange, placeholder
+}: {
+    type: 'course' | 'plan';
+    items: any[];
+    loading: boolean;
+    value: string;
+    onChange: (id: string, label: string) => void;
+    placeholder?: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const ref = useRef<HTMLDivElement>(null);
+
+    const selected = items.find(i => i.id === value);
+    const selectedLabel = selected ? (type === 'course' ? (selected.titleAr || selected.title) : selected.name) : '';
+
+    const filtered = items.filter(i => {
+        const label = type === 'course' ? (i.titleAr || i.title || '') : (i.name || '');
+        return label.toLowerCase().includes(query.toLowerCase());
+    });
+
+    // Close on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const Icon = type === 'course' ? BookOpen : Package;
+    const color = type === 'course' ? 'text-purple-600' : 'text-amber-600';
+    const bg = type === 'course' ? 'bg-purple-50 border-purple-200' : 'bg-amber-50 border-amber-200';
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                type="button"
+                onClick={() => { setOpen(o => !o); setQuery(''); }}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border bg-background text-sm transition-all
+                    ${open ? 'border-primary ring-1 ring-primary/20' : 'border-border hover:border-primary/50'}`}
+            >
+                <div className="flex items-center gap-2 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 ${color}`} />
+                    <span className={`truncate ${!selectedLabel ? 'text-muted-foreground' : 'font-medium'}`}>
+                        {selectedLabel || placeholder || 'اختر...'}
+                    </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                    {value && (
+                        <span onClick={e => { e.stopPropagation(); onChange('', ''); }}
+                            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                            <X className="w-3 h-3" />
+                        </span>
+                    )}
+                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+                </div>
+            </button>
+
+            {open && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+                    {/* Search box */}
+                    <div className="p-2 border-b border-border">
+                        <div className="relative">
+                            <Search className="absolute right-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
+                            <input
+                                autoFocus
+                                value={query}
+                                onChange={e => setQuery(e.target.value)}
+                                placeholder="ابحث..."
+                                className="w-full pr-8 pl-3 py-1.5 text-sm bg-muted rounded-md border-0 outline-none focus:ring-1 focus:ring-primary/30"
+                            />
+                        </div>
+                    </div>
+                    {/* Items list */}
+                    <div className="max-h-52 overflow-y-auto">
+                        {loading && (
+                            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                                <Loader2 className="w-4 h-4 animate-spin" /> جاري التحميل...
+                            </div>
+                        )}
+                        {!loading && filtered.length === 0 && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">لا توجد نتائج</div>
+                        )}
+                        {!loading && filtered.map(item => {
+                            const label = type === 'course' ? (item.titleAr || item.title) : item.name;
+                            const sub = type === 'course' ? (item.titleEn || item.grade || '') : (item.description || '');
+                            const isActive = item.id === value;
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => { onChange(item.id, label); setOpen(false); setQuery(''); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-right hover:bg-muted transition-colors
+                                        ${isActive ? 'bg-primary/5 border-r-2 border-primary' : ''}`}
+                                >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+                                        <Icon className={`w-4 h-4 ${color}`} />
+                                    </div>
+                                    <div className="flex-1 text-right min-w-0">
+                                        <p className="text-sm font-medium truncate">{label}</p>
+                                        {sub && <p className="text-xs text-muted-foreground truncate">{sub}</p>}
+                                    </div>
+                                    {isActive && <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {filtered.length > 0 && (
+                        <div className="px-3 py-1.5 border-t border-border bg-muted/30">
+                            <p className="text-xs text-muted-foreground">{filtered.length} نتيجة</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function StatCard({ title, value, icon: Icon, color }: { title: string; value: string | number; icon: any; color: string }) {
     return (
@@ -63,6 +185,26 @@ function CreateCodeDialog({ onSuccess, token }: { onSuccess: () => void; token: 
         maxUsesPerUser: 1, isActive: true,
     });
 
+    const [courses, setCourses] = useState<any[]>([]);
+    const [plans, setPlans] = useState<any[]>([]);
+    const [loadingScope, setLoadingScope] = useState(false);
+
+    useEffect(() => {
+        if (form.scope === 'course' && courses.length === 0) {
+            setLoadingScope(true);
+            getCourses({ pageSize: 100 })
+                .then(res => setCourses((res as any)?.data || []))
+                .catch(() => toast.error('فشل جلب الكورسات'))
+                .finally(() => setLoadingScope(false));
+        } else if (form.scope === 'plan' && plans.length === 0) {
+            setLoadingScope(true);
+            getSubscriptionPlans(token)
+                .then(res => setPlans((res as any)?.data || []))
+                .catch(() => toast.error('فشل جلب الباقات'))
+                .finally(() => setLoadingScope(false));
+        }
+    }, [form.scope, courses.length, plans.length, token]);
+
     const generateCode = () => {
         const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
         const part = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -71,6 +213,10 @@ function CreateCodeDialog({ onSuccess, token }: { onSuccess: () => void; token: 
 
     const handleSubmit = async () => {
         if (!form.code || !form.discountValue) { toast.error('يرجى تعبئة الحقول المطلوبة'); return; }
+        if (form.scope !== 'global' && !form.scopeReferenceId) {
+            toast.error(form.scope === 'course' ? 'يرجى اختيار الكورس' : 'يرجى اختيار الباقة');
+            return;
+        }
         setLoading(true);
         try {
             await createPromoCode({ ...form, startsAt: new Date(form.startsAt).toISOString() }, token);
@@ -87,12 +233,12 @@ function CreateCodeDialog({ onSuccess, token }: { onSuccess: () => void; token: 
             <DialogTrigger asChild>
                 <Button className="gap-2"><Plus className="w-4 h-4" />إنشاء كود</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md font-cairo">
+            <DialogContent className="max-w-md font-cairo overflow-y-auto max-h-[90vh]">
                 <div dir="rtl">
                 <DialogHeader>
                     <DialogTitle>إنشاء كود خصم جديد</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-2">
+                <div className="space-y-4 py-4">
                     <div className="space-y-2">
                         <Label>كود الخصم *</Label>
                         <div className="flex gap-2">
@@ -127,17 +273,48 @@ function CreateCodeDialog({ onSuccess, token }: { onSuccess: () => void; token: 
                                 onChange={e => setForm(f => ({ ...f, maxDiscountCap: e.target.value ? parseFloat(e.target.value) : undefined }))} />
                         </div>
                     )}
-                    <div className="space-y-2">
+                    
+                    {/* SCOPE SELECTION */}
+                    <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border">
                         <Label>النطاق</Label>
-                        <Select value={form.scope} onValueChange={v => setForm(f => ({ ...f, scope: v as any }))}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Select value={form.scope} onValueChange={v => setForm(f => ({ ...f, scope: v as any, scopeReferenceId: undefined }))}>
+                            <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="global">عام (كل الكورسات والباقات)</SelectItem>
-                                <SelectItem value="course">كورس محدد</SelectItem>
-                                <SelectItem value="plan">باقة اشتراك محددة</SelectItem>
+                                <SelectItem value="global">🌍 عام (كل الكورسات والباقات)</SelectItem>
+                                <SelectItem value="course">📚 كورس محدد</SelectItem>
+                                <SelectItem value="plan">💎 باقة اشتراك محددة</SelectItem>
                             </SelectContent>
                         </Select>
+
+                        {form.scope === 'course' && (
+                            <div className="mt-3 space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                                <Label className="text-xs text-muted-foreground">اختر الكورس المستهدف</Label>
+                                <SearchableEntityPicker
+                                    type="course"
+                                    items={courses}
+                                    loading={loadingScope}
+                                    value={form.scopeReferenceId || ''}
+                                    onChange={(id) => setForm(f => ({ ...f, scopeReferenceId: id || undefined }))}
+                                    placeholder="ابحث واختر الكورس..."
+                                />
+                            </div>
+                        )}
+
+                        {form.scope === 'plan' && (
+                            <div className="mt-3 space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                                <Label className="text-xs text-muted-foreground">اختر باقة الاشتراك المستهدفة</Label>
+                                <SearchableEntityPicker
+                                    type="plan"
+                                    items={plans}
+                                    loading={loadingScope}
+                                    value={form.scopeReferenceId || ''}
+                                    onChange={(id) => setForm(f => ({ ...f, scopeReferenceId: id || undefined }))}
+                                    placeholder="ابحث واختر الباقة..."
+                                />
+                            </div>
+                        )}
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
                             <Label>تاريخ البداية</Label>
@@ -189,7 +366,31 @@ function BatchGenerateDialog({ onSuccess, token }: { onSuccess: () => void; toke
         startsAt: new Date().toISOString().split('T')[0], maxUsesPerUser: 1,
     });
 
+    const [courses, setCourses] = useState<any[]>([]);
+    const [plans, setPlans] = useState<any[]>([]);
+    const [loadingScope, setLoadingScope] = useState(false);
+
+    useEffect(() => {
+        if (form.scope === 'course' && courses.length === 0) {
+            setLoadingScope(true);
+            getCourses({ pageSize: 100 })
+                .then(res => setCourses((res as any)?.data || []))
+                .catch(() => toast.error('فشل جلب الكورسات'))
+                .finally(() => setLoadingScope(false));
+        } else if (form.scope === 'plan' && plans.length === 0) {
+            setLoadingScope(true);
+            getSubscriptionPlans(token)
+                .then(res => setPlans((res as any)?.data || []))
+                .catch(() => toast.error('فشل جلب الباقات'))
+                .finally(() => setLoadingScope(false));
+        }
+    }, [form.scope, courses.length, plans.length, token]);
+
     const handleGenerate = async () => {
+        if (form.scope !== 'global' && !form.scopeReferenceId) {
+            toast.error(form.scope === 'course' ? 'يرجى اختيار الكورس' : 'يرجى اختيار الباقة');
+            return;
+        }
         setLoading(true);
         try {
             const res = await generatePromoCodes({
@@ -211,12 +412,12 @@ function BatchGenerateDialog({ onSuccess, token }: { onSuccess: () => void; toke
             <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2"><Zap className="w-4 h-4" />توليد تلقائي</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md font-cairo">
+            <DialogContent className="max-w-md font-cairo overflow-y-auto max-h-[90vh]">
                 <div dir="rtl">
                 <DialogHeader>
                     <DialogTitle>توليد أكواد تلقائية (Batch)</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-2">
+                <div className="space-y-4 py-4">
                     <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-2">
                             <Label>عدد الأكواد</Label>
@@ -251,6 +452,48 @@ function BatchGenerateDialog({ onSuccess, token }: { onSuccess: () => void; toke
                                 onChange={e => setForm(f => ({ ...f, discountValue: parseFloat(e.target.value) }))} />
                         </div>
                     </div>
+                    
+                    {/* SCOPE SELECTION */}
+                    <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border">
+                        <Label>النطاق</Label>
+                        <Select value={form.scope} onValueChange={v => setForm(f => ({ ...f, scope: v as any, scopeReferenceId: undefined }))}>
+                            <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="global">🌍 عام (كل الكورسات والباقات)</SelectItem>
+                                <SelectItem value="course">📚 كورس محدد</SelectItem>
+                                <SelectItem value="plan">💎 باقة اشتراك محددة</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {form.scope === 'course' && (
+                            <div className="mt-3 space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                                <Label className="text-xs text-muted-foreground">اختر الكورس المستهدف</Label>
+                                <SearchableEntityPicker
+                                    type="course"
+                                    items={courses}
+                                    loading={loadingScope}
+                                    value={form.scopeReferenceId || ''}
+                                    onChange={(id) => setForm(f => ({ ...f, scopeReferenceId: id || undefined }))}
+                                    placeholder="ابحث واختر الكورس..."
+                                />
+                            </div>
+                        )}
+
+                        {form.scope === 'plan' && (
+                            <div className="mt-3 space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                                <Label className="text-xs text-muted-foreground">اختر باقة الاشتراك المستهدفة</Label>
+                                <SearchableEntityPicker
+                                    type="plan"
+                                    items={plans}
+                                    loading={loadingScope}
+                                    value={form.scopeReferenceId || ''}
+                                    onChange={(id) => setForm(f => ({ ...f, scopeReferenceId: id || undefined }))}
+                                    placeholder="ابحث واختر الباقة..."
+                                />
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
                             <Label>تاريخ البداية</Label>
@@ -329,6 +572,17 @@ export default function PromoCodesPage() {
             fetchData();
         } catch (e: any) {
             toast.error(e?.message || 'حدث خطأ');
+        }
+    };
+
+    const handleDelete = async (promo: PromoCode) => {
+        if (!confirm(`هل أنت متأكد من حذف كود الخصم ${promo.code}؟`)) return;
+        try {
+            await deletePromoCode(promo.id, accessToken!);
+            toast.success('تم حذف الكود بنجاح');
+            fetchData();
+        } catch (e: any) {
+            toast.error(e?.message || 'حدث خطأ أثناء الحذف. تأكد من أن الكود لم يتم استخدامه.');
         }
     };
 
@@ -471,10 +725,16 @@ export default function PromoCodesPage() {
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    <button onClick={() => handleToggle(promo)}
-                                        className="text-muted-foreground hover:text-foreground transition-colors" title={promo.isActive ? 'تعطيل' : 'إعادة تفعيل'}>
-                                        {promo.isActive ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6" />}
-                                    </button>
+                                    <div className="flex gap-2 items-center">
+                                        <button onClick={() => handleToggle(promo)}
+                                            className="text-muted-foreground hover:text-foreground transition-colors" title={promo.isActive ? 'تعطيل' : 'إعادة تفعيل'}>
+                                            {promo.isActive ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6" />}
+                                        </button>
+                                        <button onClick={() => handleDelete(promo)}
+                                            className="text-red-500 hover:text-red-700 transition-colors" title="حذف">
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         )) : (
