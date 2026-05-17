@@ -519,7 +519,7 @@ export default function Home() {
               <iframe
                 width="100%"
                 height="100%"
-                src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
+                src="https://www.youtube.com/embed/wN_LjYVakuI?autoplay=1&rel=0"
                 title="Faiera - العرض التشويقي"
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
