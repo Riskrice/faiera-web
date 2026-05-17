@@ -38,6 +38,7 @@ export interface Course {
     tags: string[];
     duration: string;
     lessonsCount: number;
+    lessonCount?: number;
     isNew?: boolean;
     isBestseller?: boolean;
     curriculum: Chapter[];
