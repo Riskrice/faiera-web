@@ -327,7 +327,7 @@ export default async function CoursePage({ params }: PageProps) {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <PlayCircle className="w-4 h-4 text-emerald-500" />
-                                            <span>{course.lessonsCount} درس</span>
+                                            <span>{(course.lessonCount || course.lessonsCount || 0)} درس</span>
                                         </div>
                                     </div>
                                 </div>

@@ -144,7 +144,7 @@ function enrichCourses(courses: Course[], fallbackCourses: Course[]) {
             descriptionEn: course.descriptionEn || fallback?.descriptionEn,
             thumbnailUrl: course.thumbnailUrl || fallback?.thumbnailUrl,
             rating: course.rating ?? fallback?.rating ?? 0,
-            lessonsCount: course.lessonsCount ?? fallback?.lessonsCount ?? 0,
+            lessonsCount: course.lessonCount ?? course.lessonsCount ?? fallback?.lessonsCount ?? 0,
             category: course.category || fallback?.category,
             level: course.level || fallback?.level,
         };
@@ -255,7 +255,7 @@ export function ExploreContent({ isDashboard }: { isDashboard?: boolean }) {
                                             title={course.titleAr || course.titleEn}
                                             category={getCategoryLabel(course.category)}
                                             rating={course.rating || 0}
-                                            duration={`${course.lessonsCount || 0} درس`}
+                                            duration={`${(course.lessonCount || course.lessonsCount || 0)} درس`}
                                             image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                                             instructor={getCourseInstructorName(course)}
                                             delay={index * 0.05}

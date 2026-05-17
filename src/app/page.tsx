@@ -132,7 +132,7 @@ const enrichCourses = (courses: Course[], fallbackCourses: Course[]): Course[] =
       titleEn: course.titleEn || fallback?.titleEn,
       thumbnailUrl: course.thumbnailUrl || fallback?.thumbnailUrl,
       rating: course.rating ?? fallback?.rating,
-      lessonsCount: course.lessonsCount ?? fallback?.lessonsCount,
+      lessonsCount: course.lessonCount ?? course.lessonsCount ?? fallback?.lessonsCount,
       category: course.category || fallback?.category,
       level: course.level || fallback?.level,
     };
@@ -375,7 +375,7 @@ export default function Home() {
                   title={course.titleAr || course.titleEn}
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
-                  duration={`${course.lessonsCount || 0} درس`}
+                  duration={`${(course.lessonCount || course.lessonsCount || 0)} درس`}
                   image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
@@ -391,7 +391,7 @@ export default function Home() {
                   title={course.titleAr || course.titleEn}
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
-                  duration={`${course.lessonsCount || 0} درس`}
+                  duration={`${(course.lessonCount || course.lessonsCount || 0)} درس`}
                   image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
@@ -424,7 +424,7 @@ export default function Home() {
                   title={course.titleAr || course.titleEn}
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
-                  duration={`${course.lessonsCount || 0} درس`}
+                  duration={`${(course.lessonCount || course.lessonsCount || 0)} درس`}
                   image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
@@ -440,7 +440,7 @@ export default function Home() {
                   title={course.titleAr || course.titleEn}
                   category={getCategoryLabel(course.category)}
                   rating={course.rating || 0}
-                  duration={`${course.lessonsCount || 0} درس`}
+                  duration={`${(course.lessonCount || course.lessonsCount || 0)} درس`}
                   image={course.thumbnailUrl || '/assets/course-placeholder.svg'}
                   level={getLevelLabel(course.level)}
                   instructor={getCourseInstructorName(course)}
@@ -475,7 +475,7 @@ export default function Home() {
                     title={course.title}
                     category={getCategoryLabel(course.category)}
                     rating={course.rating}
-                    duration={`${course.lessonsCount} درس`}
+                    duration={`${(course.lessonCount || course.lessonsCount || 0)} درس`}
                     image={course.thumbnail}
                     level={getLevelLabel(course.level)}
                     instructor={course.author.name}
